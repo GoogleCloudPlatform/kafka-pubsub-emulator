@@ -13,17 +13,20 @@
 #  limitations under the License.
 #
 #  Note: This Dockerfile assumes that you have run mvn package to build the JAR inside of target.
-FROM openjdk:8
+FROM openjdk:8-alpine
+
+ARG version
+ENV port=8080
 
 # Set the working directory to /app
 WORKDIR /app
 
 # Copy the target directory contents into the container at /app
-ADD ./target/kafka-pubsub-emulator-1.0.0.0.jar /app
+ADD ./target/kafka-pubsub-emulator-$version.jar /app/kafka-pubsub-emulator.jar
 
 # Make port 8080 available to the world outside this container
-EXPOSE 8080
+EXPOSE $port
 
 # Run the main application JAR at launch
-ENTRYPOINT ["java","-jar","kafka-pubsub-emulator-1.0.0.0.jar"]
+ENTRYPOINT ["java", "-jar", "kafka-pubsub-emulator.jar"]
 CMD ["--help"]

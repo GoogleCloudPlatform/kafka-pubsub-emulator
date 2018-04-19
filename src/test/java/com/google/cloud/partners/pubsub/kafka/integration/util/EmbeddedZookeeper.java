@@ -209,9 +209,9 @@ public class EmbeddedZookeeper {
     LOGGER.log(
         Level.INFO,
         "Connecting {0}:{1} to check if the Zookeeper is running",
-        new String[] {
-          configuration.getClientPortAddress().getHostName(),
-          String.valueOf(configuration.getClientPortAddress().getPort())
+        new String[]{
+            configuration.getClientPortAddress().getHostName(),
+            String.valueOf(configuration.getClientPortAddress().getPort())
         });
     BufferedReader reader = null;
     try (Socket sock = new Socket()) {

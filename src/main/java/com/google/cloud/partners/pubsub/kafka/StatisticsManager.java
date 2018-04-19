@@ -29,7 +29,9 @@ import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Timestamp;
 
-/** Responsible to collect statistics information of publish/consumed messages on emulator. */
+/**
+ * Responsible to collect statistics information of publish/consumed messages on emulator.
+ */
 public class StatisticsManager {
 
   private static final Logger LOGGER = Logger.getLogger(StatisticsManager.class.getName());

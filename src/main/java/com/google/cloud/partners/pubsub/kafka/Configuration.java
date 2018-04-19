@@ -34,7 +34,8 @@ public class Configuration {
 
   private static ApplicationProperties properties;
 
-  private Configuration() {}
+  private Configuration() {
+  }
 
   public static void loadApplicationProperties(String location) {
     try {
@@ -43,7 +44,7 @@ public class Configuration {
       validateMandatoryProperties(loadProperties);
       properties = loadProperties;
     } catch (IOException e) {
-      throw new RuntimeException("Error load application configuration.", e);
+      throw new IllegalArgumentException("Error loading application configuration.", e);
     }
   }
 
@@ -56,7 +57,7 @@ public class Configuration {
     ProducerProperties producerProperties = properties.getKafkaProperties().getProducerProperties();
 
     if (isEmpty(consumerProperties.getSubscriptions()) && isEmpty(producerProperties.getTopics())) {
-      throw new RuntimeException("Must inform at least one topic or one subscription.");
+      throw new IllegalArgumentException("Must provide at least one topic or one subscription.");
     }
   }
 

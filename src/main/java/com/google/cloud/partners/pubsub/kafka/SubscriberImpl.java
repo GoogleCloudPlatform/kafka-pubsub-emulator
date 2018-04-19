@@ -59,8 +59,7 @@ import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 
 /**
- * Implementation of <a
- * href="https://cloud.google.com/pubsub/docs/reference/rpc/google.pubsub.v1#subscriber"
+ * Implementation of <a href="https://cloud.google.com/pubsub/docs/reference/rpc/google.pubsub.v1#subscriber"
  * target="_blank"> Cloud Pub/Sub Publisher API.</a>
  *
  * <p>Builds a {@link SubscriptionManager} object for each Subscription that handles the

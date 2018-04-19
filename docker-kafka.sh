@@ -19,7 +19,7 @@ set -eu -o pipefail
 
 start_docker_kafka() {
     # Starts a Kafka cluster on the local Docker host
-    local host_ip=`docker network inspect bridge | grep Gateway | cut -d: -f 2 | tr -d ' "'`
+    local host_ip=$(docker network inspect bridge | grep Gateway | cut -d: -f 2 | tr -d ' "')
     echo "==== Starting Kafka cluster on docker ===="
 
     echo "Creating Docker network kafka-testing"

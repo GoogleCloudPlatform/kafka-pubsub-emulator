@@ -60,10 +60,11 @@ public class AdminImplTest {
   private static final int EXECUTOR_PRODUCER = 1;
 
   private static final int EXECUTOR_SUBSCRIBER = 1;
-  @Rule public final GrpcServerRule grpcServerRule = new GrpcServerRule().directExecutor();
+  @Rule
+  public final GrpcServerRule grpcServerRule = new GrpcServerRule().directExecutor();
   private AdminBlockingStub blockingStub;
-  private AdminImpl admin;
-  @Mock private StatisticsManager statisticsManager;
+  @Mock
+  private StatisticsManager statisticsManager;
 
   @BeforeClass
   public static void setUpBeforeClass() {
@@ -72,7 +73,7 @@ public class AdminImplTest {
 
   @Before
   public void setUp() {
-    admin = new AdminImpl(statisticsManager);
+    AdminImpl admin = new AdminImpl(statisticsManager);
     grpcServerRule.getServiceRegistry().addService(admin);
     blockingStub = AdminGrpc.newBlockingStub(grpcServerRule.getChannel());
   }

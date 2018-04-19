@@ -88,12 +88,6 @@ public class PerformanceBenchmarkIT {
 
   /**
    * Constructor for parameterized test
-   *
-   * @param topic
-   * @param testDuration
-   * @param numPublishers
-   * @param numSubscribers
-   * @param messageSizeBytes
    */
   public PerformanceBenchmarkIT(
       String topic, int testDuration, int numPublishers, int numSubscribers, int messageSizeBytes)
@@ -118,16 +112,16 @@ public class PerformanceBenchmarkIT {
   @Parameterized.Parameters
   public static Collection benchmarkArguments() {
     return Arrays.asList(
-        new Object[][] {
-          {"performance-testing-8p", 60, 1, 1, 1000},
-          {"performance-testing-8p", 60, 2, 2, 1000},
-          {"performance-testing-8p", 60, 8, 8, 10},
-          {"performance-testing-64p", 60, 2, 8, 100},
-          {"performance-testing-64p", 60, 4, 16, 100},
-          {"performance-testing-64p", 60, 16, 16, 10},
-          {"performance-testing-128p", 60, 1, 1, 1000},
-          {"performance-testing-128p", 60, 2, 2, 1000},
-          {"performance-testing-128p", 60, 8, 8, 1000}
+        new Object[][]{
+            {"performance-testing-8p", 60, 1, 1, 1000},
+            {"performance-testing-8p", 60, 2, 2, 1000},
+            {"performance-testing-8p", 60, 8, 8, 10},
+            {"performance-testing-64p", 60, 2, 8, 100},
+            {"performance-testing-64p", 60, 4, 16, 100},
+            {"performance-testing-64p", 60, 16, 16, 10},
+            {"performance-testing-128p", 60, 1, 1, 1000},
+            {"performance-testing-128p", 60, 2, 2, 1000},
+            {"performance-testing-128p", 60, 8, 8, 1000}
         });
   }
 
@@ -229,26 +223,26 @@ public class PerformanceBenchmarkIT {
   private Subscriber getSubscriber(
       CountDownLatch publisherCountDown, CountDownLatch subscriberCountDown) {
     return Subscriber.newBuilder(
-            subscription,
-            (message, consumer) -> {
-              consumer.ack();
-              bytesReceived.add(messageSizeBytes);
-              if (!receivedIds.containsKey(message.getMessageId())) {
-                receivedIds.put(message.getMessageId(), 1);
-              } else {
-                int current = receivedIds.get(message.getMessageId());
-                receivedIds.put(message.getMessageId(), ++current);
-              }
-              try {
-                // If publishing is done but subscribing is not
-                if (publisherCountDown.await(1, TimeUnit.NANOSECONDS)
-                    && !subscriberCountDown.await(1, TimeUnit.NANOSECONDS)
-                    && publishedLatencies.keySet().containsAll(receivedIds.keySet())) {
-                  subscriberCountDown.countDown();
-                }
-              } catch (InterruptedException ignored) {
-              }
-            })
+        subscription,
+        (message, consumer) -> {
+          consumer.ack();
+          bytesReceived.add(messageSizeBytes);
+          if (!receivedIds.containsKey(message.getMessageId())) {
+            receivedIds.put(message.getMessageId(), 1);
+          } else {
+            int current = receivedIds.get(message.getMessageId());
+            receivedIds.put(message.getMessageId(), ++current);
+          }
+          try {
+            // If publishing is done but subscribing is not
+            if (publisherCountDown.await(1, TimeUnit.NANOSECONDS)
+                && !subscriberCountDown.await(1, TimeUnit.NANOSECONDS)
+                && publishedLatencies.keySet().containsAll(receivedIds.keySet())) {
+              subscriberCountDown.countDown();
+            }
+          } catch (InterruptedException ignored) {
+          }
+        })
         .setChannelProvider(BaseIT.getChannelProvider())
         .setCredentialsProvider(credentialsProvider)
         .build();

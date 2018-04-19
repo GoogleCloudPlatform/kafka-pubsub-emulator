@@ -9,6 +9,7 @@ against the [Java version](https://googlecloudplatform.github.io/google-cloud-ja
 
 ![Build Status](https://travis-ci.org/GoogleCloudPlatform/kafka-pubsub-emulator.svg?branch=master)
 [![Coverage](https://codecov.io/gh/GoogleCloudPlatform/kafka-pubsub-emulator/branch/master/graph/badge.svg)](https://codecov.io/gh/GoogleCloudPlatform/kafka-pubsub-emulator)
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/de15f86f62974e87bf6cfc9edc6fb51b)](https://www.codacy.com/app/prodonjs/kafka-pubsub-emulator?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=GoogleCloudPlatform/kafka-pubsub-emulator&amp;utm_campaign=Badge_Grade)
 
 ## Building and Running
 Checkout the source and then build the self-contained JAR with `mvn package`. If you wish to run the

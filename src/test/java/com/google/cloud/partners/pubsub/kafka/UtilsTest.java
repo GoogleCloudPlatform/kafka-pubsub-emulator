@@ -27,8 +27,10 @@ public class UtilsTest {
   @Test
   public void newThreadFactoryWithGroupAndPrefix() {
     ThreadFactory test = Utils.newThreadFactoryWithGroupAndPrefix("test-group", "test-thread");
-    Thread t1 = test.newThread(() -> {});
-    Thread t2 = test.newThread(() -> {});
+    Thread t1 = test.newThread(() -> {
+    });
+    Thread t2 = test.newThread(() -> {
+    });
     assertEquals("test-thread-0", t1.getName());
     assertEquals("test-group", t1.getThreadGroup().getName());
     assertEquals("test-thread-1", t2.getName());

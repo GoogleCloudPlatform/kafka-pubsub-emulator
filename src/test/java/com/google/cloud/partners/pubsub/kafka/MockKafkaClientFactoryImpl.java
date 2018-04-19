@@ -82,7 +82,9 @@ public class MockKafkaClientFactoryImpl implements KafkaClientFactory {
         new MockConsumerConfiguration(topic, partitions, startingOffset, endingOffset));
   }
 
-  /** Used to specify configurations that will be used when MockConsumers are created. */
+  /**
+   * Used to specify configurations that will be used when MockConsumers are created.
+   */
   private static class MockConsumerConfiguration {
 
     private final String topic;

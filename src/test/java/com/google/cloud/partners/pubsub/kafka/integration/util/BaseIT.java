@@ -228,7 +228,7 @@ public abstract class BaseIT {
   protected Subscriber getSubscriber(
       SubscriptionProperties subscriptionProperties, MessageReceiver receiver) {
     return Subscriber.newBuilder(
-            ProjectSubscriptionName.of(PROJECT, subscriptionProperties.getName()), receiver)
+        ProjectSubscriptionName.of(PROJECT, subscriptionProperties.getName()), receiver)
         .setChannelProvider(getChannelProvider())
         .setCredentialsProvider(NO_CREDENTIALS_PROVIDER)
         .build();

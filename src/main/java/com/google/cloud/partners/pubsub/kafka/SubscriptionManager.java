@@ -119,7 +119,9 @@ class SubscriptionManager {
     return subscriptionProperties;
   }
 
-  /** Shutdown hook should close all Consumers */
+  /**
+   * Shutdown hook should close all Consumers
+   */
   public void shutdown() {
     commitFromAcknowledgments();
     shutdown = true;
@@ -293,13 +295,13 @@ class SubscriptionManager {
                   + i
                   + " committing "
                   + consumerCommits
-                      .entrySet()
-                      .stream()
-                      .sorted(
-                          (es1, es2) ->
-                              es1.getKey().partition() < es2.getKey().partition() ? -1 : 1)
-                      .map(es -> "P" + es.getKey().partition() + ":" + es.getValue().offset())
-                      .collect(Collectors.joining(", ")));
+                  .entrySet()
+                  .stream()
+                  .sorted(
+                      (es1, es2) ->
+                          es1.getKey().partition() < es2.getKey().partition() ? -1 : 1)
+                  .map(es -> "P" + es.getKey().partition() + ":" + es.getValue().offset())
+                  .collect(Collectors.joining(", ")));
           try {
             kafkaConsumers.get(i).commitSync(consumerCommits);
             Consumer<String, ByteBuffer> finalConsumer = kafkaConsumers.get(i);

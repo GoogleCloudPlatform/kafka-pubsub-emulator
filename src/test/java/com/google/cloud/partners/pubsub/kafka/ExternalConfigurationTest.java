@@ -27,8 +27,8 @@ public class ExternalConfigurationTest {
       Configuration.loadApplicationProperties(
           "./src/test/resources/error-scenarios/application-without-topic-and-subscription.yaml");
       Assert.fail("Must be validated.");
-    } catch (Exception e) {
-      Assert.assertEquals("Must inform at least one topic or one subscription.", e.getMessage());
+    } catch (IllegalArgumentException e) {
+      Assert.assertEquals("Must provide at least one topic or one subscription.", e.getMessage());
     }
   }
 
