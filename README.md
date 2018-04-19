@@ -7,7 +7,7 @@ Java application with a mandatory configuration file passed as an argument at ru
 compatible with the latest versions of the Google Cloud Client libraries and is explicitly tested
 against the [Java version](https://googlecloudplatform.github.io/google-cloud-java/).
 
-![Build Status](https://travis-ci.org/GoogleCloudPlatform/kafka-pubsub-emulator.svg?branch=master)
+[![Build Status](https://travis-ci.org/GoogleCloudPlatform/kafka-pubsub-emulator.svg?branch=master)](https://travis-ci.org/GoogleCloudPlatform/kafka-pubsub-emulator)
 [![Coverage](https://codecov.io/gh/GoogleCloudPlatform/kafka-pubsub-emulator/branch/master/graph/badge.svg)](https://codecov.io/gh/GoogleCloudPlatform/kafka-pubsub-emulator)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/de15f86f62974e87bf6cfc9edc6fb51b)](https://www.codacy.com/app/prodonjs/kafka-pubsub-emulator?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=GoogleCloudPlatform/kafka-pubsub-emulator&amp;utm_campaign=Badge_Grade)
 
