@@ -7,6 +7,9 @@ Java application with a mandatory configuration file passed as an argument at ru
 compatible with the latest versions of the Google Cloud Client libraries and is explicitly tested
 against the [Java version](https://googlecloudplatform.github.io/google-cloud-java/).
 
+![Build Status](https://travis-ci.org/GoogleCloudPlatform/kafka-pubsub-emulator.svg?branch=master)
+[![Coverage](https://codecov.io/gh/GoogleCloudPlatform/kafka-pubsub-emulator/branch/master/graph/badge.svg)](https://codecov.io/gh/GoogleCloudPlatform/kafka-pubsub-emulator)
+
 ## Building and Running
 Checkout the source and then build the self-contained JAR with `mvn package`. If you wish to run the
 integration test suite, which starts an in-memory Kafka cluster, run `mvn verify`. 

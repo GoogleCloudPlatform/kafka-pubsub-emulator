@@ -258,8 +258,6 @@
               <value>src/main/resources/logging.properties</value>
             </property>
           </systemProperties>
-          <argLine>${surefireArgLine}</argLine>
-          <skipTests>${skip.unit.tests}</skipTests>
           <excludes>
             <exclude>**/IT*.java</exclude>
           </excludes>
@@ -298,10 +296,6 @@
             <goals>
               <goal>prepare-agent</goal>
             </goals>
-            <configuration>
-              <destFile>${project.build.directory}/coverage/jacoco-ut.exec</destFile>
-              <propertyName>surefireArgLine</propertyName>
-            </configuration>
           </execution>
           <execution>
             <id>post-unit-test</id>
@@ -309,21 +303,8 @@
             <goals>
               <goal>report</goal>
             </goals>
-            <configuration>
-              <dataFile>${project.build.directory}/coverage/jacoco-ut.exec</dataFile>
-              <outputDirectory>${basedir}/target/coverage/unittests</outputDirectory>
-            </configuration>
           </execution>
         </executions>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-javadoc-plugin</artifactId>
-        <version>3.0.0</version>
-        <configuration>
-          <outputDirectory>${basedir}/target/javadocs</outputDirectory>
-          <reportOutputDirectory>${basedir}/target/javadocs</reportOutputDirectory>
-        </configuration>
       </plugin>
     </plugins>
   </build>
