@@ -8,6 +8,7 @@ compatible with the latest versions of the Google Cloud Client libraries and is 
 against the [Java version](https://googlecloudplatform.github.io/google-cloud-java/).
 
 ![Build Status](https://travis-ci.org/GoogleCloudPlatform/kafka-pubsub-emulator.svg?branch=master)
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/c8fc8355ad014dfdb6f709f161f325b7)](https://app.codacy.com/app/prodonjs/kafka-pubsub-emulator?utm_source=github.com&utm_medium=referral&utm_content=GoogleCloudPlatform/kafka-pubsub-emulator&utm_campaign=badger)
 [![Coverage](https://codecov.io/gh/GoogleCloudPlatform/kafka-pubsub-emulator/branch/master/graph/badge.svg)](https://codecov.io/gh/GoogleCloudPlatform/kafka-pubsub-emulator)
 
 ## Building and Running
