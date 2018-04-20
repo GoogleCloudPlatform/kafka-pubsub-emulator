@@ -169,4 +169,5 @@ by default, clients connected to Cloud Pub/Sub open multiple channels (1 per CPU
 it's not possible to specify that type of multi-channel configuration with the emulator without
 writing custom Channel code.
 
-For further reference, consult the examples in the [integration tests](./src/test/java/integration).
+For further reference, consult the examples in the
+ [integration tests](./src/test/java/com/google/cloud/partners/pubsub/kafka/integration).
