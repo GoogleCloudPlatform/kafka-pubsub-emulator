@@ -14,29 +14,28 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: kafka-pubsub-emulator
+  name: kafka-pubsub-emulator-gateway
   labels:
-    app: emulator
+    app: emulator-gateway
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: emulator
+      app: emulator-gateway
   template:
     metadata:
       labels:
-        app: emulator
+        app: emulator-gateway
     spec:
       containers:
-      - name: kafka-pubsub-emulator
-        image: kafka-pubsub-emulator:1.0.0.0
-        args: ["--configuration.location","/etc/config/application.yaml"]
+      - name: kafka-pubsub-emulator-gateway
+        image: kafka-pubsub-emulator-gateway:1.0.0.0
+        env:
+        - name: ADDRESS
+          valueFrom:
+           configMapKeyRef:
+            name: emulator-info
+            key: ip
+        args: ["-a","$(ADDRESS):30080"]
         ports:
-        - containerPort: 8080
-        volumeMounts:
-              - name: config-volume
-                mountPath: /etc/config
-      volumes:
-          - name: config-volume
-            configMap:
-              name: application-config
+        - containerPort: 8181

@@ -140,6 +140,13 @@
       <version>${zookeeper.version}</version>
       <scope>test</scope>
     </dependency>
+
+    <dependency>
+      <groupId>com.google.api.grpc</groupId>
+      <artifactId>googleapis-common-protos</artifactId>
+      <version>0.0.3</version>
+    </dependency>
+
   </dependencies>
 
   <build>
@@ -305,6 +312,23 @@
             </goals>
           </execution>
         </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>1.6.0</version>
+        <executions>
+          <execution>
+            <id>copy-proto</id>
+            <phase>post-integration-test</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <executable>${basedir}/scripts/copy-proto.sh</executable>
+        </configuration>
       </plugin>
     </plugins>
   </build>

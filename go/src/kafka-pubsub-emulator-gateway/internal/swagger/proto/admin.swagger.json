@@ -1,0 +1,123 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "proto/admin.proto",
+    "version": "version not set"
+  },
+  "schemes": [
+    "http",
+    "https"
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/v1/admin/configuration": {
+      "get": {
+        "summary": "Get current configuration of pub/sub emulator",
+        "operationId": "Configuration",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/emulatorConfigurationResponse"
+            }
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/v1/admin/statistics": {
+      "get": {
+        "summary": "Checks metrics from pub/sub emulator",
+        "operationId": "Statistics",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/emulatorStatisticsResponse"
+            }
+          }
+        },
+        "tags": [
+          "Admin"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "ConfigurationResponseExtension": {
+      "type": "string",
+      "enum": [
+        "YAML"
+      ],
+      "default": "YAML"
+    },
+    "emulatorConfigurationResponse": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "extension": {
+          "$ref": "#/definitions/ConfigurationResponseExtension"
+        }
+      }
+    },
+    "emulatorMetric": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      }
+    },
+    "emulatorStatisticsConsolidation": {
+      "type": "object",
+      "properties": {
+        "metrics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/emulatorMetric"
+          }
+        }
+      }
+    },
+    "emulatorStatisticsResponse": {
+      "type": "object",
+      "properties": {
+        "publisherExecutors": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "subscriberExecutors": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "publisherByTopic": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/emulatorStatisticsConsolidation"
+          }
+        },
+        "subscriberByTopic": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/emulatorStatisticsConsolidation"
+          }
+        }
+      }
+    }
+  }
+}

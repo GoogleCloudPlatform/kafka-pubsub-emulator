@@ -67,7 +67,7 @@ kubectl create -f kubernetes/kafka-pubsub-emulator-deployment.yaml
 ```
 Create service load balancer for emulator application [see more](https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/). 
 ```
-kubectl expose deployment kafka-pubsub-emulator --type=LoadBalancer
+kubectl create -f kubernetes/kafka-pubsub-emulator-loadbalancer.yaml
 ```
 
 ### Configuration Options
