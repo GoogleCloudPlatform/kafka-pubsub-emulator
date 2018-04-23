@@ -76,13 +76,13 @@ public class KafkaRule extends ExternalResource {
   @Override
   protected void before() throws Throwable {
     for (int nodeId = INIT_NODE_ID; nodeId < replicationFactor; nodeId++) {
-      start(nodeId);
+      create(nodeId);
     }
   }
 
   @Override
   protected void after() {
-    kafkaServers.keySet().forEach(this::shutdown);
+    kafkaServers.keySet().forEach(this::destroy);
   }
 
   public void createTopic(String name) throws Exception {
@@ -145,16 +145,24 @@ public class KafkaRule extends ExternalResource {
 
   public void shutdown(Integer nodeId) {
     kafkaServers.get(nodeId).shutdown();
+  }
+
+  public void destroy(Integer nodeId) {
+    this.shutdown(nodeId);
     kafkaServers.remove(nodeId);
   }
 
-  public void start(Integer nodeId) throws Exception {
+  public void start(Integer nodeId) {
+    kafkaServers.get(nodeId).start();
+  }
+
+  public void create(Integer nodeId) throws Exception {
     if (kafkaServers.containsKey(nodeId)) {
       throw new IllegalArgumentException("NodeId already exists");
     }
 
     EmbeddedKafka embeddedKafka =
-        EmbeddedKafka.builder(temporaryFolder, replicationFactor, zkConnect).start(nodeId);
+        EmbeddedKafka.builder(temporaryFolder, replicationFactor, zkConnect).create(nodeId);
 
     kafkaServers.put(nodeId, embeddedKafka);
   }

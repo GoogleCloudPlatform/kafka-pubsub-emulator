@@ -73,7 +73,7 @@ public class EmbeddedKafka {
     return new EmbeddedKafka(temporaryFolder, replicationFactor, zkConnect);
   }
 
-  public EmbeddedKafka start(Integer nodeId) throws Exception {
+  public EmbeddedKafka create(Integer nodeId) throws Exception {
     int port = INIT_PORT + nodeId;
     String logDir = temporaryFolder.newFolder().getAbsolutePath();
 
@@ -83,6 +83,12 @@ public class EmbeddedKafka {
         new KafkaServer(kafkaConfig, Time.SYSTEM, Option.empty(), asScalaBuffer(new ArrayList<>()));
     kafkaServer.startup();
     return this;
+  }
+
+  public void start() {
+    if (kafkaServer.brokerState().currentState() == (NotRunning.state())) {
+      kafkaServer.startup();
+    }
   }
 
   public void shutdown() {
