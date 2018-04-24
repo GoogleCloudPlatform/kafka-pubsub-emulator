@@ -39,6 +39,8 @@ public class BrokerFailureIT extends BaseIT {
 
   /**
    * Evaluate that a Publisher/Subscriber can survive a broker failure.
+   *
+   * @throws Exception
    */
   @Test(timeout = 300000)
   public void testBrokerUpDownUp() throws Exception {
