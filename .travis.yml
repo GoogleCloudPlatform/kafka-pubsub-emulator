@@ -7,25 +7,9 @@ cache:
 env:
 - PATH=$PATH:${HOME}/google-cloud-sdk/bin CLOUDSDK_CORE_DISABLE_PROMPTS=1
 before_install:
-- openssl aes-256-cbc -K $encrypted_865dee0081bc_key -iv $encrypted_865dee0081bc_iv -in
-    kafka-pubsub-emulator_svc_acct.json.enc -out kafka-pubsub-emulator_svc_acct.json -d
-- gcloud version || echo "gcloud not installed"
-- if [ ! -d "$HOME/google-cloud-sdk/bin" ]; then
-    rm -rf $HOME/google-cloud-sdk;
-    curl https://sdk.cloud.google.com | bash;
-  fi
-- gcloud auth activate-service-account --key-file kafka-pubsub-emulator_svc_acct.json
-- gcloud config set project kafka-pubsub-emulator
+- if [ "$TRAVIS_PULL_REQUEST" == "false" ] ; then bash ./.travis/before_install.sh ; fi
 script:
 - mvn -B clean verify
 after_success:
-# Upload coverage
-- bash <(curl -s https://codecov.io/bash)
-# Upload JAR to GCS
-- version=$(grep --max-count=1 '<version>' pom.xml | awk -F '>' '{ print $2 }' | awk -F '<' '{ print $1 }')
-- "gsutil -h 'Cache-Control: no-cache, no-store, must-revalidate' cp -a public-read -v
-    target/kafka-pubsub-emulator-${version}.jar gs://kafka-pubsub-emulator/"
-# Build Docker image and push
-- docker build --build-arg version=${version} -t us.gcr.io/kafka-pubsub-emulator/kafka-pubsub-emulator:${version} .
-- gcloud docker -- push us.gcr.io/kafka-pubsub-emulator/kafka-pubsub-emulator:$version
+- if [ "$TRAVIS_PULL_REQUEST" == "false" ] ; then bash ./.travis/after_success.sh ; fi
 
