@@ -8,16 +8,12 @@ version=$(grep --max-count=1 '<version>' pom.xml | awk -F '>' '{ print $2 }' | \
 gsutil -h 'Cache-Control: no-cache, no-store, must-revalidate' cp -a public-read -v \
   target/kafka-pubsub-emulator-${version}.jar gs://kafka-pubsub-emulator/
 
-# Build docker kafka-pubsub-emulator
+# Build docker images for kafka-pubsub-emulator and kafka-pubsub-emulator-gateway
 docker build --build-arg version=${version} -t \
   us.gcr.io/kafka-pubsub-emulator/kafka-pubsub-emulator:${version} .
+docker build -t us.gcr.io/kafka-pubsub-emulator/kafka-pubsub-emulator-gateway:${version} \
+  go/src/kafka-pubsub-emulator-gateway/
 
 # Push images
 gcloud docker -- push us.gcr.io/kafka-pubsub-emulator/kafka-pubsub-emulator:${version}
-
-# Build docker kafka-pubsub-emulator-gateway
-docker build -t us.gcr.io/kafka-pubsub-emulator-gateway/kafka-pubsub-emulator-gateway:${version} \
-  go/src/kafka-pubsub-emulator-gateway/
-gcloud docker -- push us.gcr.io/kafka-pubsub-emulator-gateway/kafka-pubsub-emulator-gateway:${version}
-
-
+gcloud docker -- push us.gcr.io/kafka-pubsub-emulator/kafka-pubsub-emulator-gateway:${version}

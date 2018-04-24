@@ -3,6 +3,8 @@
 *.iml
 !pubsubemulator.iml
 *.iws
+go/src/kafka-pubsub-emulator-gateway/internal
+
 
 # Maven and generated artifacts
 coverage/
