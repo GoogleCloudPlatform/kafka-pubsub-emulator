@@ -68,7 +68,7 @@
             "type": "string"
           },
           {
-            "name": "page_size",
+            "name": "pageSize",
             "description": "Maximum number of snapshots to return.",
             "in": "query",
             "required": false,
@@ -76,7 +76,7 @@
             "format": "int32"
           },
           {
-            "name": "page_token",
+            "name": "pageToken",
             "description": "The value returned by the last `ListSnapshotsResponse`; indicates that this\nis a continuation of a prior `ListSnapshots` call, and that the system\nshould return the next page of data.",
             "in": "query",
             "required": false,
@@ -108,7 +108,7 @@
             "type": "string"
           },
           {
-            "name": "page_size",
+            "name": "pageSize",
             "description": "Maximum number of subscriptions to return.",
             "in": "query",
             "required": false,
@@ -116,7 +116,7 @@
             "format": "int32"
           },
           {
-            "name": "page_token",
+            "name": "pageToken",
             "description": "The value returned by the last `ListSubscriptionsResponse`; indicates that\nthis is a continuation of a prior `ListSubscriptions` call, and that the\nsystem should return the next page of data.",
             "in": "query",
             "required": false,
@@ -148,7 +148,7 @@
             "type": "string"
           },
           {
-            "name": "page_size",
+            "name": "pageSize",
             "description": "Maximum number of topics to return.",
             "in": "query",
             "required": false,
@@ -156,7 +156,7 @@
             "format": "int32"
           },
           {
-            "name": "page_token",
+            "name": "pageToken",
             "description": "The value returned by the last `ListTopicsResponse`; indicates that this is\na continuation of a prior `ListTopics` call, and that the system should\nreturn the next page of data.",
             "in": "query",
             "required": false,
@@ -309,7 +309,7 @@
     },
     "/v1/{subscription}:acknowledge": {
       "post": {
-        "summary": "Acknowledges the messages associated with the `ack_ids` in the\n`AcknowledgeRequest`. The Pub/Sub system can remove the relevant messages\nfrom the subscription.",
+        "summary": "Acknowledges the messages associated with the ` ackIds` in the\n`AcknowledgeRequest`. The Pub/Sub system can remove the relevant messages\nfrom the subscription.",
         "description": "Acknowledging a message whose ack deadline has expired may succeed,\nbut such a message may be redelivered later. Acknowledging a message more\nthan once will not result in an error.",
         "operationId": "Acknowledge",
         "responses": {
@@ -575,7 +575,7 @@
             "type": "string"
           },
           {
-            "name": "page_size",
+            "name": "pageSize",
             "description": "Maximum number of subscription names to return.",
             "in": "query",
             "required": false,
@@ -583,7 +583,7 @@
             "format": "int32"
           },
           {
-            "name": "page_token",
+            "name": "pageToken",
             "description": "The value returned by the last `ListTopicSubscriptionsResponse`; indicates\nthat this is a continuation of a prior `ListTopicSubscriptions` call, and\nthat the system should return the next page of data.",
             "in": "query",
             "required": false,
@@ -656,7 +656,7 @@
           "type": "string",
           "description": "The subscription whose message is being acknowledged.\nFormat is `projects/{project}/subscriptions/{sub}`."
         },
-        "ack_ids": {
+        "ackIds": {
           "type": "array",
           "items": {
             "type": "string"
@@ -690,7 +690,7 @@
           },
           "description": "The resulting snapshots."
         },
-        "next_page_token": {
+        "nextPageToken": {
           "type": "string",
           "description": "If not empty, indicates that there may be more snapshot that match the\nrequest; this value should be passed in a new `ListSnapshotsRequest`."
         }
@@ -707,7 +707,7 @@
           },
           "description": "The subscriptions that match the request."
         },
-        "next_page_token": {
+        "nextPageToken": {
           "type": "string",
           "description": "If not empty, indicates that there may be more subscriptions that match\nthe request; this value should be passed in a new\n`ListSubscriptionsRequest` to get more subscriptions."
         }
@@ -724,7 +724,7 @@
           },
           "description": "The names of the subscriptions that match the request."
         },
-        "next_page_token": {
+        "nextPageToken": {
           "type": "string",
           "description": "If not empty, indicates that there may be more subscriptions that match\nthe request; this value should be passed in a new\n`ListTopicSubscriptionsRequest` to get more subscriptions."
         }
@@ -741,7 +741,7 @@
           },
           "description": "The resulting topics."
         },
-        "next_page_token": {
+        "nextPageToken": {
           "type": "string",
           "description": "If not empty, indicates that there may be more topics that match the\nrequest; this value should be passed in a new `ListTopicsRequest`."
         }
@@ -755,14 +755,14 @@
           "type": "string",
           "description": "The name of the subscription.\nFormat is `projects/{project}/subscriptions/{sub}`."
         },
-        "ack_ids": {
+        "ackIds": {
           "type": "array",
           "items": {
             "type": "string"
           },
           "description": "List of acknowledgment IDs."
         },
-        "ack_deadline_seconds": {
+        "ackDeadlineSeconds": {
           "type": "integer",
           "format": "int32",
           "description": "The new ack deadline with respect to the time this request was sent to\nthe Pub/Sub system. For example, if the value is 10, the new\nack deadline will expire 10 seconds after the `ModifyAckDeadline` call\nwas made. Specifying zero may immediately make the message available for\nanother pull request.\nThe minimum deadline you can specify is 0 seconds.\nThe maximum deadline you can specify is 600 seconds (10 minutes)."
@@ -777,7 +777,7 @@
           "type": "string",
           "description": "The name of the subscription.\nFormat is `projects/{project}/subscriptions/{sub}`."
         },
-        "push_config": {
+        "pushConfig": {
           "$ref": "#/definitions/v1PushConfig",
           "description": "The push configuration for future deliveries.\n\nAn empty `pushConfig` indicates that the Pub/Sub system should\nstop pushing messages from the given subscription and allow\nmessages to be pulled and acknowledged - effectively pausing\nthe subscription if `Pull` is not called."
         }
@@ -804,7 +804,7 @@
     "v1PublishResponse": {
       "type": "object",
       "properties": {
-        "message_ids": {
+        "messageIds": {
           "type": "array",
           "items": {
             "type": "string"
@@ -829,11 +829,11 @@
           },
           "description": "Optional attributes for this message."
         },
-        "message_id": {
+        "messageId": {
           "type": "string",
           "description": "ID of this message, assigned by the server when the message is published.\nGuaranteed to be unique within the topic. This value may be read by a\nsubscriber that receives a `PubsubMessage` via a `Pull` call or a push\ndelivery. It must not be populated by the publisher in a `Publish` call."
         },
-        "publish_time": {
+        "publishTime": {
           "type": "string",
           "format": "date-time",
           "description": "The time at which the message was published, populated by the server when\nit receives the `Publish` call. It must not be populated by the\npublisher in a `Publish` call."
@@ -848,12 +848,12 @@
           "type": "string",
           "description": "The subscription from which messages should be pulled.\nFormat is `projects/{project}/subscriptions/{sub}`."
         },
-        "return_immediately": {
+        "returnImmediately": {
           "type": "boolean",
           "format": "boolean",
           "description": "If this field set to true, the system will respond immediately even if\nit there are no messages available to return in the `Pull` response.\nOtherwise, the system may wait (for a bounded amount of time) until at\nleast one message is available, rather than returning no messages. The\nclient may cancel the request if it does not wish to wait any longer for\nthe response."
         },
-        "max_messages": {
+        "maxMessages": {
           "type": "integer",
           "format": "int32",
           "description": "The maximum number of messages returned for this request. The Pub/Sub\nsystem may return fewer than the number specified."
@@ -864,7 +864,7 @@
     "v1PullResponse": {
       "type": "object",
       "properties": {
-        "received_messages": {
+        "receivedMessages": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/v1ReceivedMessage"
@@ -877,7 +877,7 @@
     "v1PushConfig": {
       "type": "object",
       "properties": {
-        "push_endpoint": {
+        "pushEndpoint": {
           "type": "string",
           "description": "A URL locating the endpoint to which messages should be pushed.\nFor example, a Webhook endpoint might use \"https://example.com/push\"."
         },
@@ -894,7 +894,7 @@
     "v1ReceivedMessage": {
       "type": "object",
       "properties": {
-        "ack_id": {
+        "ackId": {
           "type": "string",
           "description": "This ID can be used to acknowledge the received message."
         },
@@ -915,7 +915,7 @@
         "time": {
           "type": "string",
           "format": "date-time",
-          "description": "The time to seek to.\nMessages retained in the subscription that were published before this\ntime are marked as acknowledged, and messages retained in the\nsubscription that were published after this time are marked as\nunacknowledged. Note that this operation affects only those messages\nretained in the subscription (configured by the combination of\n`message_retention_duration` and `retain_acked_messages`). For example,\nif `time` corresponds to a point before the message retention\nwindow (or to a point before the system's notion of the subscription\ncreation time), only retained messages will be marked as unacknowledged,\nand already-expunged messages will not be restored."
+          "description": "The time to seek to.\nMessages retained in the subscription that were published before this\ntime are marked as acknowledged, and messages retained in the\nsubscription that were published after this time are marked as\nunacknowledged. Note that this operation affects only those messages\nretained in the subscription (configured by the combination of\n`messageRetentionDuration` and ` retainAckedMessages`). For example,\nif `time` corresponds to a point before the message retention\nwindow (or to a point before the system's notion of the subscription\ncreation time), only retained messages will be marked as unacknowledged,\nand already-expunged messages will not be restored."
         },
         "snapshot": {
           "type": "string",
@@ -938,7 +938,7 @@
           "type": "string",
           "description": "The name of the topic from which this snapshot is retaining messages."
         },
-        "expire_time": {
+        "expireTime": {
           "type": "string",
           "format": "date-time",
           "description": "The snapshot is guaranteed to exist up until this time.\nA newly-created snapshot expires no later than 7 days from the time of its\ncreation. Its exact lifetime is determined at creation by the existing\nbacklog in the source subscription. Specifically, the lifetime of the\nsnapshot is `7 days - (age of oldest unacked message in the subscription)`.\nFor example, consider a subscription whose oldest unacked message is 3 days\nold. If a snapshot is created from this subscription, the snapshot -- which\nwill always capture this 3-day-old backlog as long as the snapshot\nexists -- will expire in 4 days."
@@ -956,7 +956,7 @@
     "v1StreamingPullResponse": {
       "type": "object",
       "properties": {
-        "received_messages": {
+        "receivedMessages": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/v1ReceivedMessage"
@@ -977,23 +977,23 @@
           "type": "string",
           "description": "The name of the topic from which this subscription is receiving messages.\nFormat is `projects/{project}/topics/{topic}`.\nThe value of this field will be `_deleted-topic_` if the topic has been\ndeleted."
         },
-        "push_config": {
+        "pushConfig": {
           "$ref": "#/definitions/v1PushConfig",
           "description": "If push delivery is used with this subscription, this field is\nused to configure it. An empty `pushConfig` signifies that the subscriber\nwill pull and ack messages using API methods."
         },
-        "ack_deadline_seconds": {
+        "ackDeadlineSeconds": {
           "type": "integer",
           "format": "int32",
-          "description": "This value is the maximum time after a subscriber receives a message\nbefore the subscriber should acknowledge the message. After message\ndelivery but before the ack deadline expires and before the message is\nacknowledged, it is an outstanding message and will not be delivered\nagain during that time (on a best-effort basis).\n\nFor pull subscriptions, this value is used as the initial value for the ack\ndeadline. To override this value for a given message, call\n`ModifyAckDeadline` with the corresponding `ack_id` if using\npull.\nThe minimum custom deadline you can specify is 10 seconds.\nThe maximum custom deadline you can specify is 600 seconds (10 minutes).\nIf this parameter is 0, a default value of 10 seconds is used.\n\nFor push delivery, this value is also used to set the request timeout for\nthe call to the push endpoint.\n\nIf the subscriber never acknowledges the message, the Pub/Sub\nsystem will eventually redeliver the message."
+          "description": "This value is the maximum time after a subscriber receives a message\nbefore the subscriber should acknowledge the message. After message\ndelivery but before the ack deadline expires and before the message is\nacknowledged, it is an outstanding message and will not be delivered\nagain during that time (on a best-effort basis).\n\nFor pull subscriptions, this value is used as the initial value for the ack\ndeadline. To override this value for a given message, call\n`ModifyAckDeadline` with the corresponding ` ackId` if using\npull.\nThe minimum custom deadline you can specify is 10 seconds.\nThe maximum custom deadline you can specify is 600 seconds (10 minutes).\nIf this parameter is 0, a default value of 10 seconds is used.\n\nFor push delivery, this value is also used to set the request timeout for\nthe call to the push endpoint.\n\nIf the subscriber never acknowledges the message, the Pub/Sub\nsystem will eventually redeliver the message."
         },
-        "retain_acked_messages": {
+        "retainAckedMessages": {
           "type": "boolean",
           "format": "boolean",
-          "description": "Indicates whether to retain acknowledged messages. If true, then\nmessages are not expunged from the subscription's backlog, even if they are\nacknowledged, until they fall out of the `message_retention_duration`\nwindow."
+          "description": "Indicates whether to retain acknowledged messages. If true, then\nmessages are not expunged from the subscription's backlog, even if they are\nacknowledged, until they fall out of the `messageRetentionDuration`\nwindow."
         },
-        "message_retention_duration": {
+        "messageRetentionDuration": {
           "type": "string",
-          "description": "How long to retain unacknowledged messages in the subscription's backlog,\nfrom the moment a message is published.\nIf `retain_acked_messages` is true, then this also configures the retention\nof acknowledged messages, and thus configures how far back in time a `Seek`\ncan be done. Defaults to 7 days. Cannot be more than 7 days or less than 10\nminutes."
+          "description": "How long to retain unacknowledged messages in the subscription's backlog,\nfrom the moment a message is published.\nIf ` retainAckedMessages` is true, then this also configures the retention\nof acknowledged messages, and thus configures how far back in time a `Seek`\ncan be done. Defaults to 7 days. Cannot be more than 7 days or less than 10\nminutes."
         },
         "labels": {
           "type": "object",
@@ -1029,7 +1029,7 @@
           "$ref": "#/definitions/v1Snapshot",
           "description": "The updated snpashot object."
         },
-        "update_mask": {
+        "updateMask": {
           "$ref": "#/definitions/protobufFieldMask",
           "description": "Indicates which fields in the provided snapshot to update.\nMust be specified and non-empty."
         }
@@ -1043,7 +1043,7 @@
           "$ref": "#/definitions/v1Subscription",
           "description": "The updated subscription object."
         },
-        "update_mask": {
+        "updateMask": {
           "$ref": "#/definitions/protobufFieldMask",
           "description": "Indicates which fields in the provided subscription to update.\nMust be specified and non-empty."
         }
@@ -1057,7 +1057,7 @@
           "$ref": "#/definitions/v1Topic",
           "description": "The topic to update."
         },
-        "update_mask": {
+        "updateMask": {
           "$ref": "#/definitions/protobufFieldMask",
           "description": "Indicates which fields in the provided topic to update.\nMust be specified and non-empty."
         }
