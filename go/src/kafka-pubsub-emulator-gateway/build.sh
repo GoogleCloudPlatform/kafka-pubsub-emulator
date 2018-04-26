@@ -27,7 +27,13 @@ clean() {
   echo "==== Finish Clean Process ===="
 }
 
-generate_proto_stubs(){
+build_proto_files(){
+  go get -u -v github.com/spf13/cobra/cobra && \
+  go get -u -v google.golang.org/grpc && \
+  go get -u -v github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway && \
+  go get -u -v github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger && \
+  go get -u -v github.com/golang/protobuf/protoc-gen-go
+
   for filename in ${PROTO_PATH}; do
     protoc -I/usr/local/include -I. \
       -I${GOPATH}/src \
@@ -36,9 +42,7 @@ generate_proto_stubs(){
       --go_out=plugins=grpc:./internal \
       ${filename}
   done
-}
 
-generate_reverse_proxy(){
   for filename in ${PROTO_PATH}; do
     protoc -I/usr/local/include -I. \
       -I${GOPATH}/src/google.golang.org/genproto/googleapis \
@@ -49,29 +53,35 @@ generate_reverse_proxy(){
       --grpc-gateway_out=logtostderr=true:./internal \
       ${filename}
    done
-}
 
-generate_swagger_json() {
- for filename in ${PROTO_PATH}; do
-   protoc -I/usr/local/include -I. \
-     -I${GOPATH}/src \
-     -I${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
-     --plugin=protoc-gen-swagger=${GOPATH}/bin/protoc-gen-swagger \
-     --swagger_out=logtostderr=true:./internal/swagger \
-     ${filename}
- done
+  for filename in ${PROTO_PATH}; do
+    protoc -I/usr/local/include -I. \
+      -I${GOPATH}/src \
+      -I${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
+      --plugin=protoc-gen-swagger=${GOPATH}/bin/protoc-gen-swagger \
+      --swagger_out=logtostderr=true:./internal/swagger \
+      ${filename}
+  done
 }
 
 build() {
   echo "==== Initiating Build Process ===="
-  generate_proto_stubs
-  generate_reverse_proxy
-  generate_swagger_json
+  build_proto_files
 
-  CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o cmd/kafka-pubsub-emulator-gateway .
+  install
 
   docker build -t kafka-pubsub-emulator-gateway:1.0.0.0 .
   echo "==== Finish Build Process ===="
+}
+
+install() {
+  echo "==== Initiating Install Process ===="
+  clean
+
+  build_proto_files
+
+  CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o cmd/kafka-pubsub-emulator-gateway .
+  echo "==== Finish Install Process ===="
 }
 
 execute() {
@@ -84,7 +94,7 @@ if [[ "${1:-}" == "clean" ]] ; then
 elif [[ "${1:-}" == "build" ]] ; then
   build
 elif [[ "${1:-}" == "install" ]] ; then
-  CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o cmd/kafka-pubsub-emulator-gateway .
+  install
 else
   execute
 fi

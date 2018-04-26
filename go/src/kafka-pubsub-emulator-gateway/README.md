@@ -5,6 +5,7 @@ The gateway is exposed as a standalone [Go Lang](https://golang.org/) applicatio
 passed as an argument at runtime, creating gateway a server with REST endpoints of Pub/Sub services.
 
 ## Building and Running
+
 Checkout the source and then build executing the `./build.sh install`. This will generate a binary content of application at `./src/kafka-pubsub-emulator-gateway/cmd`.
 
 ### Standalone Application
@@ -19,7 +20,7 @@ Pub/Sub Emulator Gateway for Kafka will running by default on port 8181 but you 
 
 ### Docker
 
-This configuration assumes that you the project built respectively.
+This configuration will build kafka-pubusb-emulator-gateway inside the container.
 
 ```
 docker build -t kafka-pubsub-emulator-gateway:1.0.0.0 .
@@ -27,7 +28,7 @@ docker build -t kafka-pubsub-emulator-gateway:1.0.0.0 .
 docker run -p 8181:8181 kafka-pubsub-emulator-gateway:1.0.0.0 -a localhost:8080
 ```
 
-If you want to build project and build the container execute `./build.sh` after finish build process execute `docker run -p 8181:8181 kafka-pubsub-emulator-gateway:1.0.0.0 -a localhost:8080` to launch the application.
+After finish build process execute `docker run -p 8181:8181 kafka-pubsub-emulator-gateway:1.0.0.0 -a localhost:8080` to launch the application.
 
 ### Kubernetes
 

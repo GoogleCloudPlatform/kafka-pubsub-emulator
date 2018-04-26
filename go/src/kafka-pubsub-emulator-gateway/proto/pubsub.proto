@@ -93,21 +93,21 @@ service Subscriber {
   // subscriber, or to make the message available for redelivery if the
   // processing was interrupted. Note that this does not modify the
   // subscription-level `ackDeadlineSeconds` used for subsequent messages.
-  rpc ModifyAckDeadline(ModifyAckDeadlineRequest) returns (google.protobuf.Empty) {
+  rpc ModifyAckDeadline (ModifyAckDeadlineRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v1/{subscription=projects/*/subscriptions/*}:modifyAckDeadline"
       body: "*"
     };
   }
 
-  // Acknowledges the messages associated with the `ack_ids` in the
+  // Acknowledges the messages associated with the ` ackIds` in the
   // `AcknowledgeRequest`. The Pub/Sub system can remove the relevant messages
   // from the subscription.
   //
   // Acknowledging a message whose ack deadline has expired may succeed,
   // but such a message may be redelivered later. Acknowledging a message more
   // than once will not result in an error.
-  rpc Acknowledge(AcknowledgeRequest) returns (google.protobuf.Empty) {
+  rpc Acknowledge (AcknowledgeRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v1/{subscription=projects/*/subscriptions/*}:acknowledge"
       body: "*"
@@ -300,12 +300,12 @@ message PubsubMessage {
   // Guaranteed to be unique within the topic. This value may be read by a
   // subscriber that receives a `PubsubMessage` via a `Pull` call or a push
   // delivery. It must not be populated by the publisher in a `Publish` call.
-  string message_id = 3;
+  string messageId = 3;
 
   // The time at which the message was published, populated by the server when
   // it receives the `Publish` call. It must not be populated by the
   // publisher in a `Publish` call.
-  google.protobuf.Timestamp publish_time = 4;
+  google.protobuf.Timestamp publishTime = 4;
 }
 
 // Request for the GetTopic method.
@@ -322,7 +322,7 @@ message UpdateTopicRequest {
 
   // Indicates which fields in the provided topic to update.
   // Must be specified and non-empty.
-  google.protobuf.FieldMask update_mask = 2;
+  google.protobuf.FieldMask updateMask = 2;
 }
 
 // Request for the Publish method.
@@ -340,7 +340,7 @@ message PublishResponse {
   // The server-assigned ID of each published message, in the same order as
   // the messages in the request. IDs are guaranteed to be unique within
   // the topic.
-  repeated string message_ids = 1;
+  repeated string messageIds = 1;
 }
 
 // Request for the `ListTopics` method.
@@ -350,12 +350,12 @@ message ListTopicsRequest {
   string project = 1;
 
   // Maximum number of topics to return.
-  int32 page_size = 2;
+  int32 pageSize = 2;
 
   // The value returned by the last `ListTopicsResponse`; indicates that this is
   // a continuation of a prior `ListTopics` call, and that the system should
   // return the next page of data.
-  string page_token = 3;
+  string pageToken = 3;
 }
 
 // Response for the `ListTopics` method.
@@ -365,7 +365,7 @@ message ListTopicsResponse {
 
   // If not empty, indicates that there may be more topics that match the
   // request; this value should be passed in a new `ListTopicsRequest`.
-  string next_page_token = 2;
+  string nextPageToken = 2;
 }
 
 // Request for the `ListTopicSubscriptions` method.
@@ -375,12 +375,12 @@ message ListTopicSubscriptionsRequest {
   string topic = 1;
 
   // Maximum number of subscription names to return.
-  int32 page_size = 2;
+  int32 pageSize = 2;
 
   // The value returned by the last `ListTopicSubscriptionsResponse`; indicates
   // that this is a continuation of a prior `ListTopicSubscriptions` call, and
   // that the system should return the next page of data.
-  string page_token = 3;
+  string pageToken = 3;
 }
 
 // Response for the `ListTopicSubscriptions` method.
@@ -391,7 +391,7 @@ message ListTopicSubscriptionsResponse {
   // If not empty, indicates that there may be more subscriptions that match
   // the request; this value should be passed in a new
   // `ListTopicSubscriptionsRequest` to get more subscriptions.
-  string next_page_token = 2;
+  string nextPageToken = 2;
 }
 
 // Request for the `DeleteTopic` method.
@@ -420,7 +420,7 @@ message Subscription {
   // If push delivery is used with this subscription, this field is
   // used to configure it. An empty `pushConfig` signifies that the subscriber
   // will pull and ack messages using API methods.
-  PushConfig push_config = 4;
+  PushConfig pushConfig = 4;
 
   // This value is the maximum time after a subscriber receives a message
   // before the subscriber should acknowledge the message. After message
@@ -430,7 +430,7 @@ message Subscription {
   //
   // For pull subscriptions, this value is used as the initial value for the ack
   // deadline. To override this value for a given message, call
-  // `ModifyAckDeadline` with the corresponding `ack_id` if using
+  // `ModifyAckDeadline` with the corresponding ` ackId` if using
   // pull.
   // The minimum custom deadline you can specify is 10 seconds.
   // The maximum custom deadline you can specify is 600 seconds (10 minutes).
@@ -441,21 +441,21 @@ message Subscription {
   //
   // If the subscriber never acknowledges the message, the Pub/Sub
   // system will eventually redeliver the message.
-  int32 ack_deadline_seconds = 5;
+  int32 ackDeadlineSeconds = 5;
 
   // Indicates whether to retain acknowledged messages. If true, then
   // messages are not expunged from the subscription's backlog, even if they are
-  // acknowledged, until they fall out of the `message_retention_duration`
+  // acknowledged, until they fall out of the `messageRetentionDuration`
   // window.
-  bool retain_acked_messages = 7;
+  bool retainAckedMessages = 7;
 
   // How long to retain unacknowledged messages in the subscription's backlog,
   // from the moment a message is published.
-  // If `retain_acked_messages` is true, then this also configures the retention
+  // If ` retainAckedMessages` is true, then this also configures the retention
   // of acknowledged messages, and thus configures how far back in time a `Seek`
   // can be done. Defaults to 7 days. Cannot be more than 7 days or less than 10
   // minutes.
-  google.protobuf.Duration message_retention_duration = 8;
+  google.protobuf.Duration messageRetentionDuration = 8;
 
   // User labels.
   map<string, string> labels = 9;
@@ -465,7 +465,7 @@ message Subscription {
 message PushConfig {
   // A URL locating the endpoint to which messages should be pushed.
   // For example, a Webhook endpoint might use "https://example.com/push".
-  string push_endpoint = 1;
+  string pushEndpoint = 1;
 
   // Endpoint configuration attributes.
   //
@@ -494,7 +494,7 @@ message PushConfig {
 // A message and its corresponding acknowledgment ID.
 message ReceivedMessage {
   // This ID can be used to acknowledge the received message.
-  string ack_id = 1;
+  string ackId = 1;
 
   // The message.
   PubsubMessage message = 2;
@@ -514,7 +514,7 @@ message UpdateSubscriptionRequest {
 
   // Indicates which fields in the provided subscription to update.
   // Must be specified and non-empty.
-  google.protobuf.FieldMask update_mask = 2;
+  google.protobuf.FieldMask updateMask = 2;
 }
 
 // Request for the `ListSubscriptions` method.
@@ -524,12 +524,12 @@ message ListSubscriptionsRequest {
   string project = 1;
 
   // Maximum number of subscriptions to return.
-  int32 page_size = 2;
+  int32 pageSize = 2;
 
   // The value returned by the last `ListSubscriptionsResponse`; indicates that
   // this is a continuation of a prior `ListSubscriptions` call, and that the
   // system should return the next page of data.
-  string page_token = 3;
+  string pageToken = 3;
 }
 
 // Response for the `ListSubscriptions` method.
@@ -540,7 +540,7 @@ message ListSubscriptionsResponse {
   // If not empty, indicates that there may be more subscriptions that match
   // the request; this value should be passed in a new
   // `ListSubscriptionsRequest` to get more subscriptions.
-  string next_page_token = 2;
+  string nextPageToken = 2;
 }
 
 // Request for the DeleteSubscription method.
@@ -562,7 +562,7 @@ message ModifyPushConfigRequest {
   // stop pushing messages from the given subscription and allow
   // messages to be pulled and acknowledged - effectively pausing
   // the subscription if `Pull` is not called.
-  PushConfig push_config = 2;
+  PushConfig pushConfig = 2;
 }
 
 // Request for the `Pull` method.
@@ -577,11 +577,11 @@ message PullRequest {
   // least one message is available, rather than returning no messages. The
   // client may cancel the request if it does not wish to wait any longer for
   // the response.
-  bool return_immediately = 2;
+  bool returnImmediately = 2;
 
   // The maximum number of messages returned for this request. The Pub/Sub
   // system may return fewer than the number specified.
-  int32 max_messages = 3;
+  int32 maxMessages = 3;
 }
 
 // Response for the `Pull` method.
@@ -590,7 +590,7 @@ message PullResponse {
   // there are no more available in the backlog. The Pub/Sub system may return
   // fewer than the `maxMessages` requested even if there are more messages
   // available in the backlog.
-  repeated ReceivedMessage received_messages = 1;
+  repeated ReceivedMessage receivedMessages = 1;
 }
 
 // Request for the ModifyAckDeadline method.
@@ -600,7 +600,7 @@ message ModifyAckDeadlineRequest {
   string subscription = 1;
 
   // List of acknowledgment IDs.
-  repeated string ack_ids = 4;
+  repeated string ackIds = 4;
 
   // The new ack deadline with respect to the time this request was sent to
   // the Pub/Sub system. For example, if the value is 10, the new
@@ -609,7 +609,7 @@ message ModifyAckDeadlineRequest {
   // another pull request.
   // The minimum deadline you can specify is 0 seconds.
   // The maximum deadline you can specify is 600 seconds (10 minutes).
-  int32 ack_deadline_seconds = 3;
+  int32 ackDeadlineSeconds = 3;
 }
 
 // Request for the Acknowledge method.
@@ -620,7 +620,7 @@ message AcknowledgeRequest {
 
   // The acknowledgment ID for the messages being acknowledged that was returned
   // by the Pub/Sub system in the `Pull` response. Must not be empty.
-  repeated string ack_ids = 2;
+  repeated string ackIds = 2;
 }
 
 // Request for the `StreamingPull` streaming RPC method. This request is used to
@@ -638,40 +638,40 @@ message StreamingPullRequest {
   // the corresponding message may be redelivered later. Acknowledging a message
   // more than once will not result in an error. If the acknowledgement ID is
   // malformed, the stream will be aborted with status `INVALID_ARGUMENT`.
-  repeated string ack_ids = 2;
+  repeated string ackIds = 2;
 
   // The list of new ack deadlines for the IDs listed in
-  // `modify_deadline_ack_ids`. The size of this list must be the same as the
-  // size of `modify_deadline_ack_ids`. If it differs the stream will be aborted
+  // `modifyDeadlineAckIds`. The size of this list must be the same as the
+  // size of `modifyDeadlineAckIds`. If it differs the stream will be aborted
   // with `INVALID_ARGUMENT`. Each element in this list is applied to the
-  // element in the same position in `modify_deadline_ack_ids`. The new ack
+  // element in the same position in `modifyDeadlineAckIds`. The new ack
   // deadline is with respect to the time this request was sent to the Pub/Sub
   // system. Must be >= 0. For example, if the value is 10, the new ack deadline
   // will expire 10 seconds after this request is received. If the value is 0,
   // the message is immediately made available for another streaming or
   // non-streaming pull request. If the value is < 0 (an error), the stream will
   // be aborted with status `INVALID_ARGUMENT`.
-  repeated int32 modify_deadline_seconds = 3;
+  repeated int32 modifyDeadlineSeconds = 3;
 
   // List of acknowledgement IDs whose deadline will be modified based on the
-  // corresponding element in `modify_deadline_seconds`. This field can be used
+  // corresponding element in `modifyDeadlineSeconds`. This field can be used
   // to indicate that more time is needed to process a message by the
   // subscriber, or to make the message available for redelivery if the
   // processing was interrupted.
-  repeated string modify_deadline_ack_ids = 4;
+  repeated string modifyDeadlineAckIds = 4;
 
   // The ack deadline to use for the stream. This must be provided in the
   // first request on the stream, but it can also be updated on subsequent
   // requests from client to server. The minimum deadline you can specify is 10
   // seconds. The maximum deadline you can specify is 600 seconds (10 minutes).
-  int32 stream_ack_deadline_seconds = 5;
+  int32 streamAckDeadlineSeconds = 5;
 }
 
 // Response for the `StreamingPull` method. This response is used to stream
 // messages from the server to the client.
 message StreamingPullResponse {
   // Received Pub/Sub messages. This will not be empty.
-  repeated ReceivedMessage received_messages = 1;
+  repeated ReceivedMessage receivedMessages = 1;
 }
 
 // Request for the `CreateSnapshot` method.
@@ -702,7 +702,7 @@ message UpdateSnapshotRequest {
 
   // Indicates which fields in the provided snapshot to update.
   // Must be specified and non-empty.
-  google.protobuf.FieldMask update_mask = 2;
+  google.protobuf.FieldMask updateMask = 2;
 }
 
 // A snapshot resource.
@@ -722,7 +722,7 @@ message Snapshot {
   // old. If a snapshot is created from this subscription, the snapshot -- which
   // will always capture this 3-day-old backlog as long as the snapshot
   // exists -- will expire in 4 days.
-  google.protobuf.Timestamp expire_time = 3;
+  google.protobuf.Timestamp expireTime = 3;
 
   // User labels.
   map<string, string> labels = 4;
@@ -735,12 +735,12 @@ message ListSnapshotsRequest {
   string project = 1;
 
   // Maximum number of snapshots to return.
-  int32 page_size = 2;
+  int32 pageSize = 2;
 
   // The value returned by the last `ListSnapshotsResponse`; indicates that this
   // is a continuation of a prior `ListSnapshots` call, and that the system
   // should return the next page of data.
-  string page_token = 3;
+  string pageToken = 3;
 }
 
 // Response for the `ListSnapshots` method.
@@ -750,7 +750,7 @@ message ListSnapshotsResponse {
 
   // If not empty, indicates that there may be more snapshot that match the
   // request; this value should be passed in a new `ListSnapshotsRequest`.
-  string next_page_token = 2;
+  string nextPageToken = 2;
 }
 
 // Request for the `DeleteSnapshot` method.
@@ -772,7 +772,7 @@ message SeekRequest {
     // subscription that were published after this time are marked as
     // unacknowledged. Note that this operation affects only those messages
     // retained in the subscription (configured by the combination of
-    // `message_retention_duration` and `retain_acked_messages`). For example,
+    // `messageRetentionDuration` and ` retainAckedMessages`). For example,
     // if `time` corresponds to a point before the message retention
     // window (or to a point before the system's notion of the subscription
     // creation time), only retained messages will be marked as unacknowledged,
