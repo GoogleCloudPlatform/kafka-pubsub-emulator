@@ -1,5 +1,7 @@
-sudo: false
+sudo: required
 language: java
+services:
+  - docker
 cache:
   directories:
   - "$HOME/google-cloud-sdk/"
