@@ -13,29 +13,26 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-# Script to help start stop local Kafka cluster on docker
+# Script to configure all necessary containers for running the PubSub emulator benchmark
 
 set -eu -o pipefail
+NETWORK=pubsub-emulator-benchmarking
 
-EMULATOR_PID=0
-
-trap cleanup 1 2 3 6
-
-start_docker_kafka() {
+start_containers() {
     # Starts a Kafka cluster on the local Docker host
     local host_ip=$(docker network inspect bridge | grep Gateway | cut -d: -f 2 | tr -d ' "')
     echo "==== Starting Kafka cluster on docker ===="
 
-    echo "Creating Docker network emulator-benchmarking"
-    docker network create emulator-benchmarking
+    echo "Creating Docker network ${NETWORK}"
+    docker network create ${NETWORK}
 
     echo "Starting zookeeper"
     docker run -d -h zookeeper --name zookeeper \
-        -p 2181:2181 \
-        --network emulator-benchmarking \
+        --network ${NETWORK} \
+        -p 2181 \
+        --label pubsub-emulator-benchmark \
         wurstmeister/zookeeper
 
-    local port=9094
     for i in 0 1 2
     do
         topics=
@@ -48,59 +45,52 @@ start_docker_kafka() {
         docker volume create kafka-${i}
         docker run -d -h kafka-${i} --name kafka-${i} \
             --env KAFKA_BROKER_ID=${i} \
-            --env KAFKA_ADVERTISED_HOST_NAME=${host_ip} \
-            --env KAFKA_ADVERTISED_PORT=${port} \
+            --env KAFKA_LISTENERS=PLAINTEXT://:9092 \
+            --env KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-${i}:9092 \
             --env KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181 \
             --env KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=3 \
             --env KAFKA_AUTO_LEADER_REBALANCE_ENABLE='true' \
             --env KAFKA_AUTO_CREATE_TOPICS_ENABLE='false' \
             --env KAFKA_LOG_RETENTION_MS=30000 \
             ${topics} \
-            -p ${port}:9092 \
-            --network emulator-benchmarking \
+            --network ${NETWORK} \
+            -p 9092 \
+            --label pubsub-emulator-benchmark \
             --volume kafka-${i}:/kafka \
             wurstmeister/kafka
-
-        (( port++ ))
     done
+
+    i=0
+    while (( i < 20 )); do
+        sleep 1
+        echo "Waiting for $(( 20 - i ))s"
+        (( i += 1 ))
+    done
+
+    echo "Starting Pub/Sub emulator"
+    gcloud docker -- pull us.gcr.io/kafka-pubsub-emulator/kafka-pubsub-emulator:1.0.0.0
+    docker run -d -h kafka-pubsub-emulator --name kafka-pubsub-emulator \
+        --mount type=bind,src=$(pwd)/config,dst=/etc/config,ro=true \
+        -p 8080:8080 \
+        --network ${NETWORK} \
+        --label pubsub-emulator-benchmark \
+        us.gcr.io/kafka-pubsub-emulator/kafka-pubsub-emulator:1.0.0.0 \
+        --configuration.location=/etc/config/application.yaml
+
+    echo "Running containers..."
+    docker ps --filter "label=pubsub-emulator-benchmark"
 }
 
-stop_docker_kafka() {
+stop_containers() {
     # Stops and removes all artifacts from the local Docker host
     echo "==== Stopping and cleaning up Kafka cluster on docker ===="
-    docker rm -f zookeeper kafka-0 kafka-1 kafka-2
+    docker container rm -f zookeeper kafka-0 kafka-1 kafka-2 kafka-pubsub-emulator
     docker volume rm -f kafka-0 kafka-1 kafka-2
-    docker network rm emulator-benchmarking
+    docker network rm ${NETWORK}
 }
 
-start_emulator() {
-    echo "==== Starting PubsubEmulator Server on port 8080 ===="
-    java -Djava.util.logging.config.file=./benchmarking/logging.properties \
-      -cp "./benchmarking:./target/kafka-pubsub-emulator-1.0.0.0.jar" \
-      com.google.cloud.partners.pubsub.kafka.PubsubEmulatorServer \
-      --configuration.location=benchmarking/application-benchmarking.yaml > benchmarking/emulator.stdout 2>&1 &
-    EMULATOR_PID=$!
-}
-
-cleanup() {
-    echo "==== Stopping PubsubEmulator Server and tearing down Kafka containers ===="
-    [[ $EMULATOR_PID -gt 0 ]] && kill $EMULATOR_PID
-    stop_docker_kafka
-}
-
-main() {
-    start_docker_kafka
-    mvn package
-    start_emulator
-    if [[ "${1:-}" == "server" ]] ; then
-        echo "==== Waiting for Crtl-C to Kill $EMULATOR_PID ===="
-        wait $EMULATOR_PID
-    else
-        mvn -Dtest=PerformanceBenchmarkIT test | tee benchmarking/performance_tests.log
-        cleanup
-    fi
-
-    return 0
-}
-
-main $*
+if [[ "${1:-}" == "start" ]] ; then
+    start_containers
+else
+    stop_containers
+fi

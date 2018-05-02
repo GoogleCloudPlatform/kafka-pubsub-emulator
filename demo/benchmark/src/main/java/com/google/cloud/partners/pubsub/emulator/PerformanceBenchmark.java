@@ -13,16 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package com.google.cloud.partners.pubsub.kafka.integration;
+package com.google.cloud.partners.pubsub.emulator;
 
 import static java.lang.String.format;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -33,28 +30,33 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.logging.LogManager;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 import org.threeten.bp.Duration;
 
+import com.beust.jcommander.JCommander;
+import com.beust.jcommander.Parameter;
+import com.beust.jcommander.ParameterException;
 import com.google.api.core.ApiFutureCallback;
 import com.google.api.core.ApiFutures;
 import com.google.api.gax.batching.BatchingSettings;
 import com.google.api.gax.core.CredentialsProvider;
 import com.google.api.gax.core.NoCredentialsProvider;
+import com.google.api.gax.grpc.GrpcTransportChannel;
+import com.google.api.gax.rpc.FixedTransportChannelProvider;
+import com.google.api.gax.rpc.TransportChannelProvider;
 import com.google.cloud.partners.pubsub.kafka.common.AdminGrpc;
 import com.google.cloud.partners.pubsub.kafka.common.Metric;
 import com.google.cloud.partners.pubsub.kafka.common.StatisticsRequest;
 import com.google.cloud.partners.pubsub.kafka.common.StatisticsResponse;
-import com.google.cloud.partners.pubsub.kafka.integration.util.BaseIT;
 import com.google.cloud.pubsub.v1.Publisher;
 import com.google.cloud.pubsub.v1.Subscriber;
 import com.google.protobuf.ByteString;
 import com.google.pubsub.v1.PubsubMessage;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
 
 /**
  * This integration test is designed to run against the emulator running at localhost:8080 and will
@@ -62,71 +64,60 @@ import com.google.pubsub.v1.PubsubMessage;
  * the server. The server's configuration is left up to the tester. By default, these tests are
  * ignored by JUnit and by Maven.
  */
-@RunWith(Parameterized.class)
-public class PerformanceBenchmarkIT {
+public class PerformanceBenchmark {
 
-  private static final Logger LOGGER = Logger.getLogger(PerformanceBenchmarkIT.class.getName());
+  private static final Logger LOGGER = Logger.getLogger(PerformanceBenchmark.class.getName());
   private static final int MAX_OUTSTANDING_PUBLISH_REQUESTS = 2000;
   private static final String MESSAGE_SEQUENCE = "messageSequence";
   private static final String SENT_AT = "sentAt";
 
   private final CredentialsProvider credentialsProvider;
-  private final String topic;
-  private final String subscription;
-  private final int testDuration;
-  private final int numPublishers;
-  private final int numSubscribers;
-  private final int messageSizeBytes;
-
   private final Map<String, Long> publishedLatencies;
   private final Map<String, Integer> receivedIds;
   private final LongAdder bytesPublished;
   private final LongAdder bytesReceived;
   private final LongAdder publishErrors;
-  private final AdminGrpc.AdminBlockingStub adminBlockingStub;
+
+  private AdminGrpc.AdminBlockingStub adminBlockingStub;
+  @Parameter(names = "-emulator", description = "Hostname and port of the Pub/Sub Emulator server", required = true)
+  private String emulator;
+  @Parameter(names = "-topic", description = "Name of Topic to Publish to", required = true)
+  private String topic;
+  @Parameter(names = "-subscription", description = "Name of Subscription to Pull from", required = true)
+  private String subscription;
+  @Parameter(names = "-duration", description = "Duration (in seconds) to run the benchmark", required = true)
+  private int duration;
+  @Parameter(names = "-publishers", description = "Number of Publisher clients to use", required = true)
+  private int numPublishers;
+  @Parameter(names = "-subscribers", description = "Number of Subscriber clients to use", required = true)
+  private int numSubscribers;
+  @Parameter(names = "-messageSize", description = "Size of message (in bytes)", required = true)
+  private int messageSizeBytes;
   private Instant startedAt;
 
-  /**
-   * Constructor for parameterized test
-   */
-  public PerformanceBenchmarkIT(
-      String topic, int testDuration, int numPublishers, int numSubscribers, int messageSizeBytes)
-      throws IOException {
-    this.topic = topic;
-    this.subscription = "subscription-" + topic;
-    this.testDuration = testDuration;
-    this.numPublishers = numPublishers;
-    this.numSubscribers = numSubscribers;
-    this.messageSizeBytes = messageSizeBytes;
-
+  public PerformanceBenchmark() {
     credentialsProvider = new NoCredentialsProvider();
     publishedLatencies = new ConcurrentHashMap<>();
     receivedIds = new ConcurrentHashMap<>();
     bytesPublished = new LongAdder();
     bytesReceived = new LongAdder();
     publishErrors = new LongAdder();
-
-    adminBlockingStub = BaseIT.getAdminStub();
   }
 
-  @Parameterized.Parameters
-  public static Collection benchmarkArguments() {
-    return Arrays.asList(
-        new Object[][]{
-            {"performance-testing-8p", 60, 1, 1, 1000},
-            {"performance-testing-8p", 60, 2, 2, 1000},
-            {"performance-testing-8p", 60, 8, 8, 10},
-            {"performance-testing-64p", 60, 2, 8, 100},
-            {"performance-testing-64p", 60, 4, 16, 100},
-            {"performance-testing-64p", 60, 16, 16, 10},
-            {"performance-testing-128p", 60, 1, 1, 1000},
-            {"performance-testing-128p", 60, 2, 2, 1000},
-            {"performance-testing-128p", 60, 8, 8, 1000}
-        });
+  public static void main(String[] args) throws IOException, InterruptedException {
+    LogManager.getLogManager().readConfiguration(
+        PerformanceBenchmark.class.getClassLoader().getResourceAsStream("logging.properties"));
+    PerformanceBenchmark performanceBenchmark = new PerformanceBenchmark();
+    try {
+      new JCommander(performanceBenchmark, args);
+      performanceBenchmark.execute();
+    } catch (ParameterException e) {
+      new JCommander(performanceBenchmark).usage();
+    }
   }
 
-  @Test
-  public void executeTest() throws Exception {
+  public void execute() throws InterruptedException, IOException {
+    adminBlockingStub = getAdminStub();
     ScheduledExecutorService executorService = Executors.newScheduledThreadPool(numPublishers + 1);
     CountDownLatch publisherCountDown = new CountDownLatch(1);
     CountDownLatch subscriberCountDown = new CountDownLatch(1);
@@ -152,7 +143,7 @@ public class PerformanceBenchmarkIT {
     LOGGER.info(
         format(
             "Running throughput test on %s for %ds using %d Publishers and %d Subscribers using %d byte messages",
-            topic, testDuration, publishers.size(), subscribers.size(), messageSizeBytes));
+            topic, duration, publishers.size(), subscribers.size(), messageSizeBytes));
     startedAt = Instant.now();
     subscribers.forEach(Subscriber::startAsync);
     publishers.forEach(
@@ -202,7 +193,7 @@ public class PerformanceBenchmarkIT {
     executorService.scheduleAtFixedRate(this::summarizeResults, 10, 10, TimeUnit.SECONDS);
 
     try {
-      publisherCountDown.await(testDuration, TimeUnit.SECONDS);
+      publisherCountDown.await(duration, TimeUnit.SECONDS);
     } catch (InterruptedException ignored) {
     }
     publisherCountDown.countDown();
@@ -218,6 +209,16 @@ public class PerformanceBenchmarkIT {
     subscribers.forEach(s -> s.stopAsync().awaitTerminated());
     summarizeResults();
     executorService.shutdown();
+  }
+
+  private TransportChannelProvider getChannelProvider() {
+    ManagedChannel channel = ManagedChannelBuilder.forTarget(emulator).usePlaintext(true).build();
+    return FixedTransportChannelProvider.create(GrpcTransportChannel.create(channel));
+  }
+
+  private AdminGrpc.AdminBlockingStub getAdminStub() {
+    ManagedChannel channel = ManagedChannelBuilder.forTarget(emulator).usePlaintext(true).build();
+    return AdminGrpc.newBlockingStub(channel);
   }
 
   private Subscriber getSubscriber(
@@ -243,7 +244,7 @@ public class PerformanceBenchmarkIT {
           } catch (InterruptedException ignored) {
           }
         })
-        .setChannelProvider(BaseIT.getChannelProvider())
+        .setChannelProvider(getChannelProvider())
         .setCredentialsProvider(credentialsProvider)
         .build();
   }
@@ -251,7 +252,7 @@ public class PerformanceBenchmarkIT {
   private Publisher getPublisher() throws IOException {
     return Publisher.newBuilder(topic)
         .setCredentialsProvider(credentialsProvider)
-        .setChannelProvider(BaseIT.getChannelProvider())
+        .setChannelProvider(getChannelProvider())
         // Batching settings borrowed from PubSub Load Test Framework
         .setBatchingSettings(
             BatchingSettings.newBuilder()
