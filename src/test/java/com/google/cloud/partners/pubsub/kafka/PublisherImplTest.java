@@ -16,6 +16,15 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.PROJECT;
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.TOPIC1;
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.TOPIC2;
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.TOPIC_NOT_EXISTS;
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.generatePubsubMessages;
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.generatePubsubMessagesWithHeader;
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.resetRequestBindConfiguration;
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.setupRequestBindConfiguration;
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.useTestApplicationConfig;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -28,6 +37,7 @@ import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -36,6 +46,7 @@ import java.util.concurrent.ScheduledExecutorService;
 
 import org.apache.kafka.clients.producer.MockProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -62,9 +73,12 @@ import io.grpc.testing.GrpcServerRule;
 @RunWith(MockitoJUnitRunner.class)
 public class PublisherImplTest {
 
-  public static final String MESSAGE_CONTENT_REGEX = "message-[0-9]";
+  private static final String MESSAGE_CONTENT_REGEX = "message-[0-9]";
+
   private static final ScheduledExecutorService PUBLISH_EXECUTOR =
       Executors.newSingleThreadScheduledExecutor();
+  private static final String PROJECT_TOPIC_FORMAT = "projects/%s/topics/%s";
+
   @Rule
   public final GrpcServerRule grpcServerRule = new GrpcServerRule().directExecutor();
 
@@ -77,27 +91,33 @@ public class PublisherImplTest {
 
   @BeforeClass
   public static void setUpBeforeClass() {
-    TestHelpers.useTestApplicationConfig(1, 1);
+    useTestApplicationConfig(1, 1);
   }
 
   @Before
   public void setUp() {
+    setupRequestBindConfiguration();
     kafkaClientFactory = new MockKafkaClientFactoryImpl();
     publisher = new PublisherImpl(kafkaClientFactory, statisticsManager);
     grpcServerRule.getServiceRegistry().addService(publisher);
     blockingStub = PublisherGrpc.newBlockingStub(grpcServerRule.getChannel());
   }
 
+  @After
+  public void tearDown() {
+    resetRequestBindConfiguration();
+  }
+
   @Test
   public void shutdown() {
     publisher.shutdown();
-    kafkaClientFactory.getCreatedProducers().forEach(p -> assertEquals(true, p.closed()));
+    kafkaClientFactory.getCreatedProducers().forEach(p -> assertTrue(p.closed()));
   }
 
   @Test
   public void createTopic() {
     try {
-      Topic request = Topic.newBuilder().setName(TestHelpers.TOPIC1).build();
+      Topic request = Topic.newBuilder().setName(TOPIC1).build();
       blockingStub.createTopic(request);
       fail("Topic creation should be unavailable");
     } catch (StatusRuntimeException e) {
@@ -111,7 +131,7 @@ public class PublisherImplTest {
   public void deleteTopic() {
     try {
       DeleteTopicRequest request =
-          DeleteTopicRequest.newBuilder().setTopic(TestHelpers.TOPIC1).build();
+          DeleteTopicRequest.newBuilder().setTopic(TOPIC1).build();
       blockingStub.deleteTopic(request);
       fail("Topic deletion should be unavailable");
     } catch (StatusRuntimeException e) {
@@ -123,16 +143,16 @@ public class PublisherImplTest {
 
   @Test
   public void getTopicExists() {
-    GetTopicRequest request = GetTopicRequest.newBuilder().setTopic(TestHelpers.TOPIC1).build();
+    GetTopicRequest request = GetTopicRequest.newBuilder().setTopic(TOPIC1).build();
     Topic response = blockingStub.getTopic(request);
-    assertEquals(TestHelpers.TOPIC1, response.getName());
+    assertEquals(TOPIC1, response.getName());
   }
 
   @Test
   public void getTopicDoesNotExist() {
     try {
       GetTopicRequest request =
-          GetTopicRequest.newBuilder().setTopic(TestHelpers.TOPIC_NOT_EXISTS).build();
+          GetTopicRequest.newBuilder().setTopic(TOPIC_NOT_EXISTS).build();
       blockingStub.getTopic(request);
       fail("Topic should not exist");
     } catch (StatusRuntimeException e) {
@@ -148,8 +168,8 @@ public class PublisherImplTest {
     ListTopicsResponse response = blockingStub.listTopics(request);
 
     assertEquals(2, response.getTopicsCount());
-    assertEquals(TestHelpers.TOPIC1, response.getTopics(0).getName());
-    assertEquals(TestHelpers.TOPIC2, response.getTopics(1).getName());
+    assertEquals(TOPIC1, response.getTopics(0).getName());
+    assertEquals(TOPIC2, response.getTopics(1).getName());
   }
 
   @Test
@@ -158,7 +178,7 @@ public class PublisherImplTest {
     ListTopicsResponse responsePageOne = blockingStub.listTopics(request);
 
     assertEquals(1, responsePageOne.getTopicsCount());
-    assertEquals(TestHelpers.TOPIC1, responsePageOne.getTopics(0).getName());
+    assertEquals(TOPIC1, responsePageOne.getTopics(0).getName());
     assertFalse(responsePageOne.getNextPageToken().isEmpty());
 
     ListTopicsResponse responsePageTwo =
@@ -169,7 +189,7 @@ public class PublisherImplTest {
                 .build());
 
     assertEquals(1, responsePageTwo.getTopicsCount());
-    assertEquals(TestHelpers.TOPIC2, responsePageTwo.getTopics(0).getName());
+    assertEquals(TOPIC2, responsePageTwo.getTopics(0).getName());
     assertTrue(responsePageTwo.getNextPageToken().isEmpty());
   }
 
@@ -177,21 +197,21 @@ public class PublisherImplTest {
   public void listTopicSubscriptions() {
     // TestHelpers.TOPIC1
     ListTopicSubscriptionsRequest request =
-        ListTopicSubscriptionsRequest.newBuilder().setTopic(TestHelpers.TOPIC1).build();
+        ListTopicSubscriptionsRequest.newBuilder().setTopic(TOPIC1).build();
     ListTopicSubscriptionsResponse response = blockingStub.listTopicSubscriptions(request);
     assertEquals(2, response.getSubscriptionsCount());
     assertEquals("subscription-1-to-test-topic-1", response.getSubscriptions(0));
     assertEquals("subscription-2-to-test-topic-1", response.getSubscriptions(1));
 
     // TestHelpers.TOPIC2
-    request = ListTopicSubscriptionsRequest.newBuilder().setTopic(TestHelpers.TOPIC2).build();
+    request = ListTopicSubscriptionsRequest.newBuilder().setTopic(TOPIC2).build();
     response = blockingStub.listTopicSubscriptions(request);
     assertEquals(1, response.getSubscriptionsCount());
     assertEquals("subscription-1-to-test-topic-2", response.getSubscriptions(0));
 
     // None
     request =
-        ListTopicSubscriptionsRequest.newBuilder().setTopic(TestHelpers.TOPIC_NOT_EXISTS).build();
+        ListTopicSubscriptionsRequest.newBuilder().setTopic(TOPIC_NOT_EXISTS).build();
     response = blockingStub.listTopicSubscriptions(request);
     assertEquals(0, response.getSubscriptionsCount());
   }
@@ -202,7 +222,7 @@ public class PublisherImplTest {
     ListTopicSubscriptionsRequest request =
         ListTopicSubscriptionsRequest.newBuilder()
             .setPageSize(1)
-            .setTopic(TestHelpers.TOPIC1)
+            .setTopic(TOPIC1)
             .build();
 
     ListTopicSubscriptionsResponse responsePageOne = blockingStub.listTopicSubscriptions(request);
@@ -214,7 +234,7 @@ public class PublisherImplTest {
         ListTopicSubscriptionsRequest.newBuilder()
             .setPageSize(1)
             .setPageToken(responsePageOne.getNextPageToken())
-            .setTopic(TestHelpers.TOPIC1)
+            .setTopic(TOPIC1)
             .build();
 
     ListTopicSubscriptionsResponse responsePageTwo =
@@ -230,8 +250,8 @@ public class PublisherImplTest {
     try {
       PublishRequest request =
           PublishRequest.newBuilder()
-              .setTopic(TestHelpers.TOPIC_NOT_EXISTS)
-              .addAllMessages(TestHelpers.generatePubsubMessages(5))
+              .setTopic(TOPIC_NOT_EXISTS)
+              .addAllMessages(generatePubsubMessages(5))
               .build();
       blockingStub.publish(request);
       fail("Topic should not exist");
@@ -252,8 +272,8 @@ public class PublisherImplTest {
     int messages = 5;
     PublishRequest request =
         PublishRequest.newBuilder()
-            .setTopic(TestHelpers.TOPIC1)
-            .addAllMessages(TestHelpers.generatePubsubMessages(messages))
+            .setTopic(TOPIC1)
+            .addAllMessages(generatePubsubMessages(messages))
             .build();
 
     PUBLISH_EXECUTOR.submit(
@@ -278,10 +298,64 @@ public class PublisherImplTest {
 
     verify(statisticsManager, times(5))
         .computePublish(
-            eq(TestHelpers.TOPIC1),
+            eq(TOPIC1),
             argThat(message -> message.toStringUtf8().matches(MESSAGE_CONTENT_REGEX)),
             anyLong());
     verify(statisticsManager, never()).computePublishError(anyString());
+  }
+
+  @Test
+  public void publishSingleMessageWithRequestBind() {
+    int messages = 1;
+    PublishRequest request =
+        PublishRequest.newBuilder()
+            .setTopic(String.format(PROJECT_TOPIC_FORMAT, PROJECT, TOPIC2))
+            .addAllMessages(generatePubsubMessages(messages))
+            .build();
+
+    PUBLISH_EXECUTOR.submit(
+        () -> {
+          MockProducer<String, ByteBuffer> producer =
+              kafkaClientFactory.getCreatedProducers().get(0);
+          while (producer.history().size() < messages) {
+            Thread.yield();
+          }
+          for (int i = 0; i < messages; i++) {
+            producer.completeNext();
+          }
+        });
+
+    PublishResponse response = blockingStub.publish(request);
+    assertEquals(1, response.getMessageIdsCount());
+    assertEquals("0-0", response.getMessageIds(0));
+
+    verify(statisticsManager, times(1))
+        .computePublish(
+            eq(TOPIC2),
+            argThat(message -> message.toStringUtf8().matches(MESSAGE_CONTENT_REGEX)),
+            anyLong());
+    verify(statisticsManager, never()).computePublishError(anyString());
+  }
+
+  @Test
+  public void publishSingleMessageFailsWithRequestBind() {
+    int messages = 1;
+    PublishRequest request =
+        PublishRequest.newBuilder()
+            .setTopic(String.format(PROJECT_TOPIC_FORMAT, "not-mapped", TOPIC2))
+            .addAllMessages(generatePubsubMessages(messages))
+            .build();
+
+    try {
+      blockingStub.publish(request);
+      fail("Publish operation should fail");
+    } catch (StatusRuntimeException e) {
+      assertEquals(Status.NOT_FOUND.getCode(), e.getStatus().getCode());
+      assertTrue(e.getMessage().contains("is not a valid Topic"));
+      verifyZeroInteractions(statisticsManager);
+    } catch (Exception e) {
+      fail("Unexpected exception thrown " + e.getMessage());
+    }
   }
 
   @Test
@@ -289,8 +363,8 @@ public class PublisherImplTest {
     int messages = 3;
     PublishRequest request =
         PublishRequest.newBuilder()
-            .setTopic(TestHelpers.TOPIC1)
-            .addAllMessages(TestHelpers.generatePubsubMessagesWithHeader(messages))
+            .setTopic(TOPIC1)
+            .addAllMessages(generatePubsubMessagesWithHeader(messages))
             .build();
 
     final MockProducer<String, ByteBuffer> producer =
@@ -330,7 +404,7 @@ public class PublisherImplTest {
 
     verify(statisticsManager, times(3))
         .computePublish(
-            eq(TestHelpers.TOPIC1),
+            eq(TOPIC1),
             argThat(message -> message.toStringUtf8().matches(MESSAGE_CONTENT_REGEX)),
             anyLong());
     verify(statisticsManager, never()).computePublishError(anyString());
@@ -341,8 +415,8 @@ public class PublisherImplTest {
     int messages = 5;
     PublishRequest request =
         PublishRequest.newBuilder()
-            .setTopic(TestHelpers.TOPIC1)
-            .addAllMessages(TestHelpers.generatePubsubMessages(messages))
+            .setTopic(TOPIC1)
+            .addAllMessages(generatePubsubMessages(messages))
             .build();
 
     PUBLISH_EXECUTOR.submit(
@@ -360,7 +434,7 @@ public class PublisherImplTest {
     } catch (StatusRuntimeException e) {
       assertEquals(Status.INTERNAL.getCode(), e.getStatus().getCode());
 
-      verify(statisticsManager).computePublishError(eq(TestHelpers.TOPIC1));
+      verify(statisticsManager).computePublishError(eq(TOPIC1));
       verify(statisticsManager, never())
           .computePublish(anyString(), any(ByteString.class), anyLong());
     } catch (Exception e) {
@@ -373,8 +447,8 @@ public class PublisherImplTest {
     int messages = 5;
     PublishRequest request =
         PublishRequest.newBuilder()
-            .setTopic(TestHelpers.TOPIC1)
-            .addAllMessages(TestHelpers.generatePubsubMessages(messages))
+            .setTopic(TOPIC1)
+            .addAllMessages(generatePubsubMessages(messages))
             .build();
 
     PUBLISH_EXECUTOR.submit(
@@ -398,7 +472,7 @@ public class PublisherImplTest {
 
     verify(statisticsManager, times(4))
         .computePublish(
-            eq(TestHelpers.TOPIC1),
+            eq(TOPIC1),
             argThat(message -> message.toStringUtf8().matches(MESSAGE_CONTENT_REGEX)),
             anyLong());
     verify(statisticsManager, never()).computePublishError(anyString());

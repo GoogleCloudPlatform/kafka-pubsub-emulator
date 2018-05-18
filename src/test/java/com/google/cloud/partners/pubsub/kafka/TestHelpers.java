@@ -16,6 +16,9 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
+import static com.google.common.collect.Lists.newArrayList;
+import static com.google.common.collect.Maps.newHashMap;
+
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
@@ -29,11 +32,13 @@ import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.apache.kafka.common.record.TimestampType;
 
 import com.google.cloud.partners.pubsub.kafka.properties.ApplicationProperties;
+import com.google.cloud.partners.pubsub.kafka.properties.PubSubBindProperties;
 import com.google.protobuf.ByteString;
 import com.google.pubsub.v1.PubsubMessage;
 
 public class TestHelpers {
 
+  protected static final String PROJECT = "cpe-ti";
   public static final Charset UTF8 = Charset.forName("UTF-8");
   public static final String SUBSCRIPTION1 = "subscription-1-to-test-topic-1";
   public static final String SUBSCRIPTION2 = "subscription-2-to-test-topic-1";
@@ -122,4 +127,22 @@ public class TestHelpers {
     }
     return records;
   }
+
+  protected static void setupRequestBindConfiguration() {
+    Map<String, List<PubSubBindProperties>> pubSubProperties = newHashMap();
+    pubSubProperties.put(PROJECT, newArrayList(givenPubSubBindProperty(SUBSCRIPTION1, TOPIC2)));
+    Configuration.getApplicationProperties().setPubSubProperties(pubSubProperties);
+  }
+
+  private static PubSubBindProperties givenPubSubBindProperty(String subscription, String topic) {
+    PubSubBindProperties property = new PubSubBindProperties();
+    property.setSubscription(subscription);
+    property.setTopic(topic);
+    return property;
+  }
+
+  protected static void resetRequestBindConfiguration() {
+    Configuration.getApplicationProperties().setPubSubProperties(newHashMap());
+  }
+
 }

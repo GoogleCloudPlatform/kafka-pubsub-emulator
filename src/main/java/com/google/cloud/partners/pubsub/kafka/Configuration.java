@@ -16,9 +16,16 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
+import static com.google.common.collect.Lists.newArrayList;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -27,10 +34,12 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.google.cloud.partners.pubsub.kafka.properties.ApplicationProperties;
 import com.google.cloud.partners.pubsub.kafka.properties.ConsumerProperties;
 import com.google.cloud.partners.pubsub.kafka.properties.ProducerProperties;
+import com.google.cloud.partners.pubsub.kafka.properties.PubSubBindProperties;
 
 public class Configuration {
 
   private static final ObjectMapper MAPPER = getMapper();
+  public static final String RESOURCE_CHAR_SEPARATOR = "/";
 
   private static ApplicationProperties properties;
 
@@ -74,4 +83,49 @@ public class Configuration {
   public static String getCurrentConfiguration() throws JsonProcessingException {
     return MAPPER.writeValueAsString(properties);
   }
+
+  /**
+   * If the topic contains the projects/{project}/topics/{topic} format, strip out the prefix and
+   * return only the final portion which is the topic's name.
+   *
+   * @param topicPath topic information
+   * @return last information based on split logic
+   */
+  public static String getLastNodeInTopic(String topicPath) {
+    return getLastNode(topicPath, PubSubBindProperties::getTopic);
+  }
+
+  /**
+   * If the topic contains the projects/{project}/subscriptions/{subscription} format, strip out the
+   * prefix and return only the final portion which is the subscriptions's name.
+   *
+   * @param subscriptionPath name of topic on subscriptions
+   */
+  public static String getLastNodeInSubscription(String subscriptionPath) {
+    return getLastNode(subscriptionPath, PubSubBindProperties::getSubscription);
+  }
+
+  private static String getLastNode(String path,
+      Function<PubSubBindProperties, String> mapFunction) {
+    if (path.contains(RESOURCE_CHAR_SEPARATOR)) {
+      String[] pieces = path.split(RESOURCE_CHAR_SEPARATOR);
+      Map<String, List<PubSubBindProperties>> pubSubProperties = properties.getPubSubProperties();
+      String resource = pieces[pieces.length - 1];
+      if (pubSubProperties.isEmpty()) {
+        return resource;
+      } else {
+        String project = pieces[1];
+
+        return pubSubProperties.getOrDefault(project, newArrayList())
+            .stream()
+            .map(mapFunction)
+            .filter(Objects::nonNull)
+            .filter(Predicate.isEqual(resource))
+            .findFirst().orElse(path);
+      }
+    }
+    return path;
+  }
+
+
 }
