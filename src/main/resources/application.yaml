@@ -18,6 +18,22 @@ server:
   #security:
     #certChainFile: to/path/server.crt
     #privateKeyFile: to/path/server.key
+
+# Pub sub project bind configuration for publisher and subscribers, with this configuration is possible
+# to link subscriptions and topics per project, if not set all projects are able to be accessed on requests.
+#pubsub:
+  #project-a:
+    #- topic: throughput-testing-3p
+    #  subscription: subscription-to-throughput-testing-3p
+    #- topic: throughput-testing-6p
+    #  subscription: subscription-to-throughput-testing-6p
+  #project-b:
+    #- topic: throughput-testing-100p
+    #  subscription: subscription-to-throughput-testing-100p
+  #project-c:
+    #- topic: testing-10p
+    #  subscription: subscription-to-testing-10p
+
 kafka:
    bootstrapServers: localhost:9094,localhost:9095,localhost:9096
    consumer:

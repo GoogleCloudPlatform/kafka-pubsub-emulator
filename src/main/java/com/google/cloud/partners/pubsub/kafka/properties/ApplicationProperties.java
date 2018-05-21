@@ -16,6 +16,11 @@
 
 package com.google.cloud.partners.pubsub.kafka.properties;
 
+import static com.google.common.collect.Maps.newHashMap;
+
+import java.util.List;
+import java.util.Map;
+
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class ApplicationProperties {
@@ -25,6 +30,9 @@ public class ApplicationProperties {
 
   @JsonProperty("kafka")
   private KafkaProperties kafkaProperties;
+
+  @JsonProperty("pubsub")
+  private Map<String, List<PubSubBindProperties>> pubSubProperties = newHashMap();
 
   public ServerProperties getServerProperties() {
     return serverProperties;
@@ -42,6 +50,14 @@ public class ApplicationProperties {
     this.kafkaProperties = kafkaProperties;
   }
 
+  public Map<String, List<PubSubBindProperties>> getPubSubProperties() {
+    return pubSubProperties;
+  }
+
+  public void setPubSubProperties(Map<String, List<PubSubBindProperties>> pubSubProperties) {
+    this.pubSubProperties = pubSubProperties;
+  }
+
   @Override
   public String toString() {
     return "ApplicationProperties{"
@@ -50,6 +66,8 @@ public class ApplicationProperties {
         + '\''
         + ", kafkaProperties="
         + kafkaProperties
+        + ", pubSubProperties="
+        + pubSubProperties
         + '}';
   }
 }

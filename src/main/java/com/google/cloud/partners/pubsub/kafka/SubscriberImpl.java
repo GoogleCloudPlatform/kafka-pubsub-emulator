@@ -16,14 +16,15 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
+import static com.google.cloud.partners.pubsub.kafka.Configuration.getLastNodeInSubscription;
 import static java.lang.String.format;
+import static java.util.Objects.isNull;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -327,21 +328,6 @@ class SubscriberImpl extends SubscriberImplBase {
         .build();
   }
 
-  /**
-   * If the topic contains the projects/{project}/subscriptions/{subscription} format, strip out the
-   * prefix and return only the final portion which is the subscriptions's name.
-   *
-   * @param requestedSubscription name of topic on subscriptions
-   */
-  private String getLastNodeInSubscription(String requestedSubscription) {
-    if (requestedSubscription.contains("/")) {
-      String[] pieces = requestedSubscription.split("/");
-      return pieces[pieces.length - 1];
-    } else {
-      return requestedSubscription;
-    }
-  }
-
   private SubscriptionProperties buildSubscriptionProperty(Subscription request) {
     SubscriptionProperties properties = new SubscriptionProperties();
     properties.setAckDeadlineSeconds(request.getAckDeadlineSeconds());
@@ -395,7 +381,7 @@ class SubscriberImpl extends SubscriberImplBase {
 
       this.responseObserver.setOnReadyHandler(
           () -> {
-            if (Objects.isNull(subscriptionManager)) {
+            if (isNull(subscriptionManager)) {
               this.responseObserver.request(1);
             }
           });
@@ -448,7 +434,7 @@ class SubscriberImpl extends SubscriberImplBase {
      * @throws StatusException if empty subscriptions informed will this exception will be thrown
      */
     private void processSubscription(StreamingPullRequest request) throws StatusException {
-      if (Objects.isNull(subscriptionManager)) {
+      if (isNull(subscriptionManager)) {
         String subscription = getLastNodeInSubscription(request.getSubscription());
         subscriptionManager = subscriptions.get(subscription);
         if (subscriptionManager == null) {
@@ -590,7 +576,7 @@ class SubscriberImpl extends SubscriberImplBase {
           responseObserver.onError(Status.fromThrowable(e).asException());
         }
       }
-      if (!Objects.isNull(subscriptionManager)) {
+      if (!isNull(subscriptionManager)) {
         subscriptionManager.commitFromAcknowledgments();
       }
     }

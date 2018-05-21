@@ -16,6 +16,8 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
+import static com.google.cloud.partners.pubsub.kafka.Configuration.getLastNodeInTopic;
+
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.time.Instant;
@@ -66,7 +68,9 @@ class PublisherImpl extends PublisherImplBase {
   private static final int MAX_PUBLISH_WAIT = 10; // 10 seconds
 
   private final List<Producer<String, ByteBuffer>> kafkaProducers;
+
   private final Map<String, Topic> topicMap;
+
   private final AtomicInteger nextProducerIndex;
 
   private final ConsumerProperties consumerProperties;
@@ -267,19 +271,4 @@ class PublisherImpl extends PublisherImplBase {
     responseObserver.onCompleted();
   }
 
-  /**
-   * If the topic contains the projects/{project}/topics/{topic} format, strip out the prefix and
-   * return only the final portion which is the topic's name.
-   *
-   * @param requestedTopic topic information
-   * @return last information based on split logic
-   */
-  private String getLastNodeInTopic(String requestedTopic) {
-    if (requestedTopic.contains("/")) {
-      String[] pieces = requestedTopic.split("/");
-      return pieces[pieces.length - 1];
-    } else {
-      return requestedTopic;
-    }
-  }
 }

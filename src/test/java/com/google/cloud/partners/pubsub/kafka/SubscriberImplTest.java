@@ -16,6 +16,10 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.PROJECT;
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.SUBSCRIPTION1;
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.SUBSCRIPTION_NOT_EXISTS;
+import static java.lang.String.format;
 import static junit.framework.TestCase.fail;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -78,6 +82,7 @@ public class SubscriberImplTest {
 
   private static final String MESSAGE_CONTENT_REGEX = "message-[0-9]{4}";
   private static final String NEW_SUBSCRIPTION = "new-subscription";
+  public static final String PROJECT_SUBSCRIPTION_FORMAT = "projects/%s/subscriptions/%s";
   @Rule
   public final GrpcServerRule grpcServerRule = new GrpcServerRule();
   private SubscriberGrpc.SubscriberBlockingStub blockingStub;
@@ -106,9 +111,10 @@ public class SubscriberImplTest {
 
   @Before
   public void setUp() {
+    TestHelpers.setupRequestBindConfiguration();
     kafkaClientFactory = new MockKafkaClientFactoryImpl();
     kafkaClientFactory.configureConsumersForSubscription(
-        TestHelpers.TOPIC1, TestHelpers.SUBSCRIPTION1, 3, 0L, 0L);
+        TestHelpers.TOPIC1, SUBSCRIPTION1, 3, 0L, 0L);
     kafkaClientFactory.configureConsumersForSubscription(
         TestHelpers.TOPIC1, TestHelpers.SUBSCRIPTION2, 3, 0L, 0L);
     kafkaClientFactory.configureConsumersForSubscription(
@@ -132,13 +138,15 @@ public class SubscriberImplTest {
         .getConsumerProperties()
         .getSubscriptions()
         .removeIf(s -> NEW_SUBSCRIPTION.equals(s.getName()));
+
+    TestHelpers.resetRequestBindConfiguration();
   }
 
   @Test
   public void shutdown() {
     subscriber.shutdown();
     kafkaClientFactory
-        .getConsumersForSubscription(TestHelpers.SUBSCRIPTION1)
+        .getConsumersForSubscription(SUBSCRIPTION1)
         .forEach(c -> assertTrue(c.closed()));
     kafkaClientFactory
         .getConsumersForSubscription(TestHelpers.SUBSCRIPTION2)
@@ -153,7 +161,7 @@ public class SubscriberImplTest {
     try {
       Subscription request =
           Subscription.newBuilder()
-              .setName(TestHelpers.SUBSCRIPTION1)
+              .setName(SUBSCRIPTION1)
               .setTopic("not-exists")
               .setAckDeadlineSeconds(10)
               .build();
@@ -171,7 +179,7 @@ public class SubscriberImplTest {
     try {
       Subscription request =
           Subscription.newBuilder()
-              .setName(TestHelpers.SUBSCRIPTION1)
+              .setName(SUBSCRIPTION1)
               .setTopic(TestHelpers.TOPIC1)
               .setAckDeadlineSeconds(10)
               .build();
@@ -258,9 +266,9 @@ public class SubscriberImplTest {
   @Test
   public void getSubscriptionExists() {
     GetSubscriptionRequest request =
-        GetSubscriptionRequest.newBuilder().setSubscription(TestHelpers.SUBSCRIPTION1).build();
+        GetSubscriptionRequest.newBuilder().setSubscription(SUBSCRIPTION1).build();
     Subscription response = blockingStub.getSubscription(request);
-    assertEquals(TestHelpers.SUBSCRIPTION1, response.getName());
+    assertEquals(SUBSCRIPTION1, response.getName());
     assertEquals(TestHelpers.TOPIC1, response.getTopic());
     assertEquals(10, response.getAckDeadlineSeconds());
   }
@@ -270,7 +278,7 @@ public class SubscriberImplTest {
     try {
       GetSubscriptionRequest request =
           GetSubscriptionRequest.newBuilder()
-              .setSubscription(TestHelpers.SUBSCRIPTION_NOT_EXISTS)
+              .setSubscription(SUBSCRIPTION_NOT_EXISTS)
               .build();
       blockingStub.getSubscription(request);
       fail("Subscription should not exist");
@@ -286,7 +294,7 @@ public class SubscriberImplTest {
     ListSubscriptionsRequest request = ListSubscriptionsRequest.getDefaultInstance();
     ListSubscriptionsResponse response = blockingStub.listSubscriptions(request);
     assertEquals(3, response.getSubscriptionsCount());
-    assertEquals(TestHelpers.SUBSCRIPTION1, response.getSubscriptions(0).getName());
+    assertEquals(SUBSCRIPTION1, response.getSubscriptions(0).getName());
     assertEquals(TestHelpers.TOPIC1, response.getSubscriptions(0).getTopic());
     assertEquals(10, response.getSubscriptions(0).getAckDeadlineSeconds());
 
@@ -309,7 +317,7 @@ public class SubscriberImplTest {
             ListSubscriptionsRequest.newBuilder().setPageSize(1).build());
 
     assertEquals(1, response.getSubscriptionsCount());
-    assertEquals(TestHelpers.SUBSCRIPTION1, response.getSubscriptions(0).getName());
+    assertEquals(SUBSCRIPTION1, response.getSubscriptions(0).getName());
     assertEquals(TestHelpers.TOPIC1, response.getSubscriptions(0).getTopic());
     assertEquals(10, response.getSubscriptions(0).getAckDeadlineSeconds());
     assertFalse(response.getNextPageToken().isEmpty());
@@ -350,7 +358,7 @@ public class SubscriberImplTest {
   public void pullEmptyResponse() {
     PullRequest request =
         PullRequest.newBuilder()
-            .setSubscription(TestHelpers.SUBSCRIPTION1)
+            .setSubscription(SUBSCRIPTION1)
             .setMaxMessages(100)
             .build();
     PullResponse response = blockingStub.pull(request);
@@ -362,7 +370,7 @@ public class SubscriberImplTest {
     try {
       PullRequest request =
           PullRequest.newBuilder()
-              .setSubscription(TestHelpers.SUBSCRIPTION_NOT_EXISTS)
+              .setSubscription(SUBSCRIPTION_NOT_EXISTS)
               .setMaxMessages(100)
               .build();
       blockingStub.pull(request);
@@ -379,13 +387,13 @@ public class SubscriberImplTest {
     int partitions = 3;
     int recordsPerPartition = 2;
     MockConsumer<String, ByteBuffer> mockConsumer =
-        kafkaClientFactory.getConsumersForSubscription(TestHelpers.SUBSCRIPTION1).get(0);
+        kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION1).get(0);
     TestHelpers.generateConsumerRecords(TestHelpers.TOPIC1, partitions, recordsPerPartition, null)
         .forEach(mockConsumer::addRecord);
 
     PullRequest request =
         PullRequest.newBuilder()
-            .setSubscription(TestHelpers.SUBSCRIPTION1)
+            .setSubscription(SUBSCRIPTION1)
             .setMaxMessages(100)
             .build();
     PullResponse response = blockingStub.pull(request);
@@ -423,9 +431,80 @@ public class SubscriberImplTest {
 
     verify(statisticsManager, times(6))
         .computeSubscriber(
-            eq(TestHelpers.SUBSCRIPTION1),
+            eq(SUBSCRIPTION1),
             argThat(message -> message.toStringUtf8().matches(MESSAGE_CONTENT_REGEX)),
             any(Timestamp.class));
+  }
+
+  @Test
+  public void pullSingleClientWithRequestBind() {
+    int partitions = 3;
+    int recordsPerPartition = 2;
+    MockConsumer<String, ByteBuffer> mockConsumer =
+        kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION1).get(0);
+    TestHelpers.generateConsumerRecords(TestHelpers.TOPIC1, partitions, recordsPerPartition, null)
+        .forEach(mockConsumer::addRecord);
+
+    PullRequest request =
+        PullRequest.newBuilder()
+            .setSubscription(format(PROJECT_SUBSCRIPTION_FORMAT, PROJECT, SUBSCRIPTION1))
+            .setMaxMessages(100)
+            .build();
+    PullResponse response = blockingStub.pull(request);
+    assertEquals(6, response.getReceivedMessagesCount());
+
+    // Sort messageIds and data for easier evaluation
+    List<String> ackIds =
+        response
+            .getReceivedMessagesList()
+            .stream()
+            .map(ReceivedMessage::getAckId)
+            .sorted()
+            .collect(Collectors.toList());
+    List<String> messages =
+        response
+            .getReceivedMessagesList()
+            .stream()
+            .map(m -> m.getMessage().getData().toString(TestHelpers.UTF8))
+            .sorted()
+            .collect(Collectors.toList());
+
+    assertEquals(ackIds.get(0), "0-0");
+    assertEquals(ackIds.get(1), "0-1");
+    assertEquals(ackIds.get(2), "1-0");
+    assertEquals(ackIds.get(3), "1-1");
+    assertEquals(ackIds.get(4), "2-0");
+    assertEquals(ackIds.get(5), "2-1");
+
+    assertEquals(messages.get(0), "message-0000");
+    assertEquals(messages.get(1), "message-0001");
+    assertEquals(messages.get(2), "message-0002");
+    assertEquals(messages.get(3), "message-0003");
+    assertEquals(messages.get(4), "message-0004");
+    assertEquals(messages.get(5), "message-0005");
+
+    verify(statisticsManager, times(6))
+        .computeSubscriber(
+            eq(SUBSCRIPTION1),
+            argThat(message -> message.toStringUtf8().matches(MESSAGE_CONTENT_REGEX)),
+            any(Timestamp.class));
+  }
+
+  @Test
+  public void pullSubscriptionRequestBindPathDoesNotExist() {
+    try {
+      PullRequest request =
+          PullRequest.newBuilder()
+              .setSubscription(format(PROJECT_SUBSCRIPTION_FORMAT, "not-exists", SUBSCRIPTION1))
+              .setMaxMessages(100)
+              .build();
+      blockingStub.pull(request);
+      fail("Subscription should not exist");
+    } catch (StatusRuntimeException e) {
+      assertEquals(Status.NOT_FOUND.getCode(), e.getStatus().getCode());
+    } catch (Exception e) {
+      fail("Unexpected exception thrown " + e.getMessage());
+    }
   }
 
   @Test
@@ -435,7 +514,7 @@ public class SubscriberImplTest {
     int recordsPerPartition = 2;
     int concurrentClients = 3;
     MockConsumer<String, ByteBuffer> mockConsumer =
-        kafkaClientFactory.getConsumersForSubscription(TestHelpers.SUBSCRIPTION1).get(0);
+        kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION1).get(0);
     TestHelpers.generateConsumerRecords(TestHelpers.TOPIC1, partitions, recordsPerPartition, null)
         .forEach(mockConsumer::addRecord);
 
@@ -451,7 +530,7 @@ public class SubscriberImplTest {
                 countDownLatch.await();
                 PullRequest request =
                     PullRequest.newBuilder()
-                        .setSubscription(TestHelpers.SUBSCRIPTION1)
+                        .setSubscription(SUBSCRIPTION1)
                         .setMaxMessages(100)
                         .build();
                 return blockingStub.pull(request);
@@ -496,7 +575,7 @@ public class SubscriberImplTest {
 
     verify(statisticsManager, times(6))
         .computeSubscriber(
-            eq(TestHelpers.SUBSCRIPTION1),
+            eq(SUBSCRIPTION1),
             argThat(message -> message.toStringUtf8().matches(MESSAGE_CONTENT_REGEX)),
             any(Timestamp.class));
   }
@@ -506,11 +585,11 @@ public class SubscriberImplTest {
     List<String> ackIds = Arrays.asList("0-0", "0-1", "0-2");
     AcknowledgeRequest request =
         AcknowledgeRequest.newBuilder()
-            .setSubscription(TestHelpers.SUBSCRIPTION1)
+            .setSubscription(SUBSCRIPTION1)
             .addAllAckIds(ackIds)
             .build();
     assertEquals(Empty.getDefaultInstance(), blockingStub.acknowledge(request));
-    verify(subscriptionManageFactory.getForSubscription(TestHelpers.SUBSCRIPTION1))
+    verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1))
         .acknowledge(ackIds);
   }
 
@@ -519,7 +598,7 @@ public class SubscriberImplTest {
     try {
       AcknowledgeRequest request =
           AcknowledgeRequest.newBuilder()
-              .setSubscription(TestHelpers.SUBSCRIPTION_NOT_EXISTS)
+              .setSubscription(SUBSCRIPTION_NOT_EXISTS)
               .addAllAckIds(Arrays.asList("0-0", "0-1", "0-2"))
               .build();
       blockingStub.acknowledge(request);
@@ -536,12 +615,12 @@ public class SubscriberImplTest {
     List<String> ackIds = Arrays.asList("0-0", "0-1", "0-2");
     ModifyAckDeadlineRequest request =
         ModifyAckDeadlineRequest.newBuilder()
-            .setSubscription(TestHelpers.SUBSCRIPTION1)
+            .setSubscription(SUBSCRIPTION1)
             .setAckDeadlineSeconds(300)
             .addAllAckIds(ackIds)
             .build();
     assertEquals(Empty.getDefaultInstance(), blockingStub.modifyAckDeadline(request));
-    verify(subscriptionManageFactory.getForSubscription(TestHelpers.SUBSCRIPTION1))
+    verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1))
         .modifyAckDeadline(ackIds, 300);
   }
 
@@ -550,7 +629,7 @@ public class SubscriberImplTest {
     try {
       ModifyAckDeadlineRequest request =
           ModifyAckDeadlineRequest.newBuilder()
-              .setSubscription(TestHelpers.SUBSCRIPTION_NOT_EXISTS)
+              .setSubscription(SUBSCRIPTION_NOT_EXISTS)
               .setAckDeadlineSeconds(300)
               .addAllAckIds(Arrays.asList("0-0", "0-1", "0-2"))
               .build();
@@ -585,7 +664,40 @@ public class SubscriberImplTest {
             });
     StreamingPullRequest request =
         StreamingPullRequest.newBuilder()
-            .setSubscription(TestHelpers.SUBSCRIPTION_NOT_EXISTS)
+            .setSubscription(SUBSCRIPTION_NOT_EXISTS)
+            .build();
+    requestObserver.onNext(request);
+    try {
+      assertTrue(finishLatch.await(5, TimeUnit.SECONDS));
+    } catch (InterruptedException e) {
+      fail("Unexpected exception thrown " + e.getMessage());
+    }
+  }
+
+  @Test(timeout = 10000)
+  public void streamingPullSubscriptionWithRequestBindDoesNotExist() {
+    SubscriberStub asyncStub = SubscriberGrpc.newStub(grpcServerRule.getChannel());
+    CountDownLatch finishLatch = new CountDownLatch(1);
+    StreamObserver<StreamingPullRequest> requestObserver =
+        asyncStub.streamingPull(
+            new StreamObserver<StreamingPullResponse>() {
+              @Override
+              public void onNext(StreamingPullResponse streamingPullResponse) {
+              }
+
+              @Override
+              public void onError(Throwable throwable) {
+                finishLatch.countDown();
+              }
+
+              @Override
+              public void onCompleted() {
+              }
+            });
+    StreamingPullRequest request =
+        StreamingPullRequest.newBuilder()
+            .setSubscription(
+                format(PROJECT_SUBSCRIPTION_FORMAT, "not-exists", SUBSCRIPTION1))
             .build();
     requestObserver.onNext(request);
     try {
@@ -601,7 +713,7 @@ public class SubscriberImplTest {
     int partitions = 3;
     int recordsPerPartition = 2;
     MockConsumer<String, ByteBuffer> mockConsumer =
-        kafkaClientFactory.getConsumersForSubscription(TestHelpers.SUBSCRIPTION1).get(0);
+        kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION1).get(0);
     TestHelpers.generateConsumerRecords(TestHelpers.TOPIC1, partitions, recordsPerPartition, null)
         .forEach(mockConsumer::addRecord);
 
@@ -624,7 +736,7 @@ public class SubscriberImplTest {
               }
             });
     StreamingPullRequest request =
-        StreamingPullRequest.newBuilder().setSubscription(TestHelpers.SUBSCRIPTION1).build();
+        StreamingPullRequest.newBuilder().setSubscription(SUBSCRIPTION1).build();
     requestObserver.onNext(request);
     try {
       streamingFuture.get();
@@ -633,7 +745,7 @@ public class SubscriberImplTest {
     }
     requestObserver.onError(Status.CANCELLED.asException());
     waitForMessageReceipt();
-    verify(subscriptionManageFactory.getForSubscription(TestHelpers.SUBSCRIPTION1))
+    verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1))
         .commitFromAcknowledgments();
   }
 
@@ -646,7 +758,7 @@ public class SubscriberImplTest {
     int partitions = 3;
     int recordsPerPartition = 2;
     MockConsumer<String, ByteBuffer> mockConsumer =
-        kafkaClientFactory.getConsumersForSubscription(TestHelpers.SUBSCRIPTION1).get(0);
+        kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION1).get(0);
     TestHelpers.generateConsumerRecords(TestHelpers.TOPIC1, partitions, recordsPerPartition, null)
         .forEach(mockConsumer::addRecord);
 
@@ -669,7 +781,7 @@ public class SubscriberImplTest {
               }
             });
     StreamingPullRequest request =
-        StreamingPullRequest.newBuilder().setSubscription(TestHelpers.SUBSCRIPTION1).build();
+        StreamingPullRequest.newBuilder().setSubscription(SUBSCRIPTION1).build();
     requestObserver.onNext(request);
     StreamingPullResponse response = null;
     try {
@@ -705,20 +817,22 @@ public class SubscriberImplTest {
     assertEquals(sortedMessages.get(5), "message-0005");
     requestObserver.onCompleted();
     waitForMessageReceipt();
-    verify(subscriptionManageFactory.getForSubscription(TestHelpers.SUBSCRIPTION1))
+    verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1))
         .acknowledge(ackIds);
-    verify(subscriptionManageFactory.getForSubscription(TestHelpers.SUBSCRIPTION1), atLeastOnce())
+    verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1), atLeastOnce())
         .commitFromAcknowledgments();
   }
 
   @Test(timeout = 10000)
-  public void streamingPullSingleClientPullDifferentAckDeadline() {
+  public void streamingPullWithRequestBindSingleClientPullAndAck() {
     SubscriberStub asyncStub = SubscriberGrpc.newStub(grpcServerRule.getChannel());
+    List<String> ackIds = new ArrayList<>();
+    List<String> messages = new ArrayList<>();
 
     int partitions = 3;
     int recordsPerPartition = 2;
     MockConsumer<String, ByteBuffer> mockConsumer =
-        kafkaClientFactory.getConsumersForSubscription(TestHelpers.SUBSCRIPTION1).get(0);
+        kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION1).get(0);
     TestHelpers.generateConsumerRecords(TestHelpers.TOPIC1, partitions, recordsPerPartition, null)
         .forEach(mockConsumer::addRecord);
 
@@ -742,39 +856,58 @@ public class SubscriberImplTest {
             });
     StreamingPullRequest request =
         StreamingPullRequest.newBuilder()
-            .setSubscription(TestHelpers.SUBSCRIPTION1)
-            .setStreamAckDeadlineSeconds(30)
+            .setSubscription(format(PROJECT_SUBSCRIPTION_FORMAT, PROJECT, SUBSCRIPTION1))
             .build();
     requestObserver.onNext(request);
+    StreamingPullResponse response = null;
     try {
-      streamingFuture.get();
+      response = streamingFuture.get();
     } catch (ExecutionException | InterruptedException e) {
       fail("Unexpected exception thrown " + e.getMessage());
     }
+    response
+        .getReceivedMessagesList()
+        .forEach(
+            rm -> {
+              ackIds.add(rm.getAckId());
+              messages.add(rm.getMessage().getData().toString(TestHelpers.UTF8));
+            });
+    request = StreamingPullRequest.newBuilder().addAllAckIds(ackIds).build();
+    requestObserver.onNext(request);
+
+    assertEquals(6, ackIds.size());
+    assertEquals(6, messages.size());
+    List<String> sortedAckIds = ackIds.stream().sorted().collect(Collectors.toList());
+    List<String> sortedMessages = messages.stream().sorted().collect(Collectors.toList());
+    assertEquals(sortedAckIds.get(0), "0-0");
+    assertEquals(sortedAckIds.get(1), "0-1");
+    assertEquals(sortedAckIds.get(2), "1-0");
+    assertEquals(sortedAckIds.get(3), "1-1");
+    assertEquals(sortedAckIds.get(4), "2-0");
+    assertEquals(sortedAckIds.get(5), "2-1");
+    assertEquals(sortedMessages.get(0), "message-0000");
+    assertEquals(sortedMessages.get(1), "message-0001");
+    assertEquals(sortedMessages.get(2), "message-0002");
+    assertEquals(sortedMessages.get(3), "message-0003");
+    assertEquals(sortedMessages.get(4), "message-0004");
+    assertEquals(sortedMessages.get(5), "message-0005");
     requestObserver.onCompleted();
     waitForMessageReceipt();
-    verify(subscriptionManageFactory.getForSubscription(TestHelpers.SUBSCRIPTION1))
-        .pull(500, true, 30);
-    verify(subscriptionManageFactory.getForSubscription(TestHelpers.SUBSCRIPTION1), atLeastOnce())
+    verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1))
+        .acknowledge(ackIds);
+    verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1), atLeastOnce())
         .commitFromAcknowledgments();
-
-    verify(statisticsManager, times(6))
-        .computeSubscriber(
-            eq(TestHelpers.SUBSCRIPTION1),
-            argThat(message -> message.toStringUtf8().matches(MESSAGE_CONTENT_REGEX)),
-            any(Timestamp.class));
   }
 
+
   @Test(timeout = 10000)
-  public void streamingPullSingleClientPullModifyAndAck() {
+  public void streamingPullSingleClientPullDifferentAckDeadline() {
     SubscriberStub asyncStub = SubscriberGrpc.newStub(grpcServerRule.getChannel());
-    List<String> ackIds = new ArrayList<>();
-    List<String> messages = new ArrayList<>();
 
     int partitions = 3;
     int recordsPerPartition = 2;
     MockConsumer<String, ByteBuffer> mockConsumer =
-        kafkaClientFactory.getConsumersForSubscription(TestHelpers.SUBSCRIPTION1).get(0);
+        kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION1).get(0);
     TestHelpers.generateConsumerRecords(TestHelpers.TOPIC1, partitions, recordsPerPartition, null)
         .forEach(mockConsumer::addRecord);
 
@@ -797,7 +930,63 @@ public class SubscriberImplTest {
               }
             });
     StreamingPullRequest request =
-        StreamingPullRequest.newBuilder().setSubscription(TestHelpers.SUBSCRIPTION1).build();
+        StreamingPullRequest.newBuilder()
+            .setSubscription(SUBSCRIPTION1)
+            .setStreamAckDeadlineSeconds(30)
+            .build();
+    requestObserver.onNext(request);
+    try {
+      streamingFuture.get();
+    } catch (ExecutionException | InterruptedException e) {
+      fail("Unexpected exception thrown " + e.getMessage());
+    }
+    requestObserver.onCompleted();
+    waitForMessageReceipt();
+    verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1))
+        .pull(500, true, 30);
+    verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1), atLeastOnce())
+        .commitFromAcknowledgments();
+
+    verify(statisticsManager, times(6))
+        .computeSubscriber(
+            eq(SUBSCRIPTION1),
+            argThat(message -> message.toStringUtf8().matches(MESSAGE_CONTENT_REGEX)),
+            any(Timestamp.class));
+  }
+
+  @Test(timeout = 10000)
+  public void streamingPullSingleClientPullModifyAndAck() {
+    SubscriberStub asyncStub = SubscriberGrpc.newStub(grpcServerRule.getChannel());
+    List<String> ackIds = new ArrayList<>();
+    List<String> messages = new ArrayList<>();
+
+    int partitions = 3;
+    int recordsPerPartition = 2;
+    MockConsumer<String, ByteBuffer> mockConsumer =
+        kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION1).get(0);
+    TestHelpers.generateConsumerRecords(TestHelpers.TOPIC1, partitions, recordsPerPartition, null)
+        .forEach(mockConsumer::addRecord);
+
+    CompletableFuture<StreamingPullResponse> streamingFuture = new CompletableFuture<>();
+    StreamObserver<StreamingPullRequest> requestObserver =
+        asyncStub.streamingPull(
+            new StreamObserver<StreamingPullResponse>() {
+              @Override
+              public void onNext(StreamingPullResponse streamingPullResponse) {
+                streamingFuture.complete(streamingPullResponse);
+              }
+
+              @Override
+              public void onError(Throwable throwable) {
+                streamingFuture.completeExceptionally(throwable);
+              }
+
+              @Override
+              public void onCompleted() {
+              }
+            });
+    StreamingPullRequest request =
+        StreamingPullRequest.newBuilder().setSubscription(SUBSCRIPTION1).build();
     requestObserver.onNext(request);
     StreamingPullResponse response = null;
     try {
@@ -840,16 +1029,16 @@ public class SubscriberImplTest {
 
     requestObserver.onCompleted();
     waitForMessageReceipt();
-    verify(subscriptionManageFactory.getForSubscription(TestHelpers.SUBSCRIPTION1))
+    verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1))
         .modifyAckDeadline(Collections.singletonList(ackIds.get(0)), 60);
-    verify(subscriptionManageFactory.getForSubscription(TestHelpers.SUBSCRIPTION1))
+    verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1))
         .acknowledge(ackIds);
-    verify(subscriptionManageFactory.getForSubscription(TestHelpers.SUBSCRIPTION1), atLeastOnce())
+    verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1), atLeastOnce())
         .commitFromAcknowledgments();
 
     verify(statisticsManager, times(6))
         .computeSubscriber(
-            eq(TestHelpers.SUBSCRIPTION1),
+            eq(SUBSCRIPTION1),
             argThat(message -> message.toStringUtf8().matches(MESSAGE_CONTENT_REGEX)),
             any(Timestamp.class));
   }
@@ -877,7 +1066,7 @@ public class SubscriberImplTest {
               }
             });
     StreamingPullRequest request =
-        StreamingPullRequest.newBuilder().setSubscription(TestHelpers.SUBSCRIPTION1).build();
+        StreamingPullRequest.newBuilder().setSubscription(SUBSCRIPTION1).build();
     requestObserver.onNext(request);
     request =
         StreamingPullRequest.newBuilder()

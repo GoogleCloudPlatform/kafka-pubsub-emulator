@@ -89,6 +89,8 @@ publishing. *Note that if your broker configuration supports auto-creation of to
 to specify topics that do not exist within the cluster*.
 
 #### Optional Options
+- **pubsub.{project}.topic**: Specifies pub/sub topic to be accessed per project.
+- **pubsub.{project}.subscription**: Specifies pub/sub subscription to be accessed per project.
 - **server.parallelism**: Specifies the maximum number of threads to use to satisfy gRPC requests. 
 By default, this is set to the number of CPU cores.
 - **server.security.certChainFile**: Path to the certificate chain file.
