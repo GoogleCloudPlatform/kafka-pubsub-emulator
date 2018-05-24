@@ -39,22 +39,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 
-import java.nio.ByteBuffer;
-import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-
-import org.apache.kafka.clients.producer.MockProducer;
-import org.apache.kafka.clients.producer.ProducerRecord;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
-
 import com.google.protobuf.ByteString;
 import com.google.pubsub.v1.DeleteTopicRequest;
 import com.google.pubsub.v1.GetTopicRequest;
@@ -69,6 +53,20 @@ import com.google.pubsub.v1.Topic;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcServerRule;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import org.apache.kafka.clients.producer.MockProducer;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
 public class PublisherImplTest {
@@ -130,8 +128,7 @@ public class PublisherImplTest {
   @Test
   public void deleteTopic() {
     try {
-      DeleteTopicRequest request =
-          DeleteTopicRequest.newBuilder().setTopic(TOPIC1).build();
+      DeleteTopicRequest request = DeleteTopicRequest.newBuilder().setTopic(TOPIC1).build();
       blockingStub.deleteTopic(request);
       fail("Topic deletion should be unavailable");
     } catch (StatusRuntimeException e) {
@@ -151,8 +148,7 @@ public class PublisherImplTest {
   @Test
   public void getTopicDoesNotExist() {
     try {
-      GetTopicRequest request =
-          GetTopicRequest.newBuilder().setTopic(TOPIC_NOT_EXISTS).build();
+      GetTopicRequest request = GetTopicRequest.newBuilder().setTopic(TOPIC_NOT_EXISTS).build();
       blockingStub.getTopic(request);
       fail("Topic should not exist");
     } catch (StatusRuntimeException e) {
@@ -210,8 +206,7 @@ public class PublisherImplTest {
     assertEquals("subscription-1-to-test-topic-2", response.getSubscriptions(0));
 
     // None
-    request =
-        ListTopicSubscriptionsRequest.newBuilder().setTopic(TOPIC_NOT_EXISTS).build();
+    request = ListTopicSubscriptionsRequest.newBuilder().setTopic(TOPIC_NOT_EXISTS).build();
     response = blockingStub.listTopicSubscriptions(request);
     assertEquals(0, response.getSubscriptionsCount());
   }
@@ -220,10 +215,7 @@ public class PublisherImplTest {
   public void listTopicSubscriptionsWithPagination() {
     // TestHelpers.TOPIC1
     ListTopicSubscriptionsRequest request =
-        ListTopicSubscriptionsRequest.newBuilder()
-            .setPageSize(1)
-            .setTopic(TOPIC1)
-            .build();
+        ListTopicSubscriptionsRequest.newBuilder().setPageSize(1).setTopic(TOPIC1).build();
 
     ListTopicSubscriptionsResponse responsePageOne = blockingStub.listTopicSubscriptions(request);
     assertEquals(1, responsePageOne.getSubscriptionsCount());

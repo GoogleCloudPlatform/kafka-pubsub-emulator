@@ -18,6 +18,9 @@ package com.google.cloud.partners.pubsub.kafka.integration.rule;
 
 import static java.util.Collections.singleton;
 
+import com.google.cloud.partners.pubsub.kafka.integration.util.EmbeddedKafka;
+import com.google.cloud.partners.pubsub.kafka.integration.util.EmbeddedZookeeper;
+import com.google.common.collect.ImmutableMap;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -29,7 +32,6 @@ import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.CreateTopicsResult;
@@ -37,10 +39,6 @@ import org.apache.kafka.clients.admin.DeleteTopicsResult;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.junit.rules.ExternalResource;
 import org.junit.rules.TemporaryFolder;
-
-import com.google.cloud.partners.pubsub.kafka.integration.util.EmbeddedKafka;
-import com.google.cloud.partners.pubsub.kafka.integration.util.EmbeddedZookeeper;
-import com.google.common.collect.ImmutableMap;
 
 public class KafkaRule extends ExternalResource {
 

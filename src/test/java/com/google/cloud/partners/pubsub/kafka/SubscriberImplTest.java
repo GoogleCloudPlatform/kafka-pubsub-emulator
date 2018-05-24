@@ -31,30 +31,6 @@ import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-
-import org.apache.kafka.clients.consumer.MockConsumer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
-
 import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
 import com.google.protobuf.Empty;
 import com.google.protobuf.Timestamp;
@@ -76,13 +52,35 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import io.grpc.testing.GrpcServerRule;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import org.apache.kafka.clients.consumer.MockConsumer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
 public class SubscriberImplTest {
 
+  public static final String PROJECT_SUBSCRIPTION_FORMAT = "projects/%s/subscriptions/%s";
   private static final String MESSAGE_CONTENT_REGEX = "message-[0-9]{4}";
   private static final String NEW_SUBSCRIPTION = "new-subscription";
-  public static final String PROJECT_SUBSCRIPTION_FORMAT = "projects/%s/subscriptions/%s";
   @Rule
   public final GrpcServerRule grpcServerRule = new GrpcServerRule();
   private SubscriberGrpc.SubscriberBlockingStub blockingStub;
@@ -277,9 +275,7 @@ public class SubscriberImplTest {
   public void getSubscriptionDoesNotExist() {
     try {
       GetSubscriptionRequest request =
-          GetSubscriptionRequest.newBuilder()
-              .setSubscription(SUBSCRIPTION_NOT_EXISTS)
-              .build();
+          GetSubscriptionRequest.newBuilder().setSubscription(SUBSCRIPTION_NOT_EXISTS).build();
       blockingStub.getSubscription(request);
       fail("Subscription should not exist");
     } catch (StatusRuntimeException e) {
@@ -357,10 +353,7 @@ public class SubscriberImplTest {
   @Test
   public void pullEmptyResponse() {
     PullRequest request =
-        PullRequest.newBuilder()
-            .setSubscription(SUBSCRIPTION1)
-            .setMaxMessages(100)
-            .build();
+        PullRequest.newBuilder().setSubscription(SUBSCRIPTION1).setMaxMessages(100).build();
     PullResponse response = blockingStub.pull(request);
     assertEquals(0, response.getReceivedMessagesCount());
   }
@@ -392,10 +385,7 @@ public class SubscriberImplTest {
         .forEach(mockConsumer::addRecord);
 
     PullRequest request =
-        PullRequest.newBuilder()
-            .setSubscription(SUBSCRIPTION1)
-            .setMaxMessages(100)
-            .build();
+        PullRequest.newBuilder().setSubscription(SUBSCRIPTION1).setMaxMessages(100).build();
     PullResponse response = blockingStub.pull(request);
     assertEquals(6, response.getReceivedMessagesCount());
 
@@ -584,13 +574,9 @@ public class SubscriberImplTest {
   public void acknowledge() {
     List<String> ackIds = Arrays.asList("0-0", "0-1", "0-2");
     AcknowledgeRequest request =
-        AcknowledgeRequest.newBuilder()
-            .setSubscription(SUBSCRIPTION1)
-            .addAllAckIds(ackIds)
-            .build();
+        AcknowledgeRequest.newBuilder().setSubscription(SUBSCRIPTION1).addAllAckIds(ackIds).build();
     assertEquals(Empty.getDefaultInstance(), blockingStub.acknowledge(request));
-    verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1))
-        .acknowledge(ackIds);
+    verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1)).acknowledge(ackIds);
   }
 
   @Test
@@ -663,9 +649,7 @@ public class SubscriberImplTest {
               }
             });
     StreamingPullRequest request =
-        StreamingPullRequest.newBuilder()
-            .setSubscription(SUBSCRIPTION_NOT_EXISTS)
-            .build();
+        StreamingPullRequest.newBuilder().setSubscription(SUBSCRIPTION_NOT_EXISTS).build();
     requestObserver.onNext(request);
     try {
       assertTrue(finishLatch.await(5, TimeUnit.SECONDS));
@@ -696,8 +680,7 @@ public class SubscriberImplTest {
             });
     StreamingPullRequest request =
         StreamingPullRequest.newBuilder()
-            .setSubscription(
-                format(PROJECT_SUBSCRIPTION_FORMAT, "not-exists", SUBSCRIPTION1))
+            .setSubscription(format(PROJECT_SUBSCRIPTION_FORMAT, "not-exists", SUBSCRIPTION1))
             .build();
     requestObserver.onNext(request);
     try {
@@ -745,8 +728,7 @@ public class SubscriberImplTest {
     }
     requestObserver.onError(Status.CANCELLED.asException());
     waitForMessageReceipt();
-    verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1))
-        .commitFromAcknowledgments();
+    verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1)).commitFromAcknowledgments();
   }
 
   @Test(timeout = 10000)
@@ -817,8 +799,7 @@ public class SubscriberImplTest {
     assertEquals(sortedMessages.get(5), "message-0005");
     requestObserver.onCompleted();
     waitForMessageReceipt();
-    verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1))
-        .acknowledge(ackIds);
+    verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1)).acknowledge(ackIds);
     verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1), atLeastOnce())
         .commitFromAcknowledgments();
   }
@@ -893,12 +874,10 @@ public class SubscriberImplTest {
     assertEquals(sortedMessages.get(5), "message-0005");
     requestObserver.onCompleted();
     waitForMessageReceipt();
-    verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1))
-        .acknowledge(ackIds);
+    verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1)).acknowledge(ackIds);
     verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1), atLeastOnce())
         .commitFromAcknowledgments();
   }
-
 
   @Test(timeout = 10000)
   public void streamingPullSingleClientPullDifferentAckDeadline() {
@@ -942,8 +921,7 @@ public class SubscriberImplTest {
     }
     requestObserver.onCompleted();
     waitForMessageReceipt();
-    verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1))
-        .pull(500, true, 30);
+    verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1)).pull(500, true, 30);
     verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1), atLeastOnce())
         .commitFromAcknowledgments();
 
@@ -1031,8 +1009,7 @@ public class SubscriberImplTest {
     waitForMessageReceipt();
     verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1))
         .modifyAckDeadline(Collections.singletonList(ackIds.get(0)), 60);
-    verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1))
-        .acknowledge(ackIds);
+    verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1)).acknowledge(ackIds);
     verify(subscriptionManageFactory.getForSubscription(SUBSCRIPTION1), atLeastOnce())
         .commitFromAcknowledgments();
 

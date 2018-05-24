@@ -16,9 +16,8 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
-import java.util.concurrent.ScheduledExecutorService;
-
 import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
+import java.util.concurrent.ScheduledExecutorService;
 
 interface SubscriptionManagerFactory {
 

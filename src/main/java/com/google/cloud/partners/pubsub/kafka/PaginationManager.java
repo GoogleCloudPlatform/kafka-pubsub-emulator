@@ -3,13 +3,12 @@ package com.google.cloud.partners.pubsub.kafka;
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toMap;
 
+import com.google.common.collect.ImmutableList;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.function.Function;
-
-import com.google.common.collect.ImmutableList;
 
 public class PaginationManager<T> {
 

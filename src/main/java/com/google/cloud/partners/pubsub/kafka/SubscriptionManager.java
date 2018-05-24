@@ -16,6 +16,11 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
+import com.google.cloud.partners.pubsub.kafka.properties.ConsumerProperties;
+import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
+import com.google.protobuf.ByteString;
+import com.google.protobuf.Timestamp;
+import com.google.pubsub.v1.PubsubMessage;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -38,7 +43,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -47,12 +51,6 @@ import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.header.Headers;
-
-import com.google.cloud.partners.pubsub.kafka.properties.ConsumerProperties;
-import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
-import com.google.protobuf.ByteString;
-import com.google.protobuf.Timestamp;
-import com.google.pubsub.v1.PubsubMessage;
 
 /**
  * A {@code SubscriptionManager} is responsible for handling the communication with Kafka as a

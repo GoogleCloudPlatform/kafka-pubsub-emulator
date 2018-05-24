@@ -18,13 +18,12 @@ package com.google.cloud.partners.pubsub.kafka.properties;
 
 import static com.google.common.collect.Lists.newArrayList;
 
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.Sets;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class KafkaProperties {
 

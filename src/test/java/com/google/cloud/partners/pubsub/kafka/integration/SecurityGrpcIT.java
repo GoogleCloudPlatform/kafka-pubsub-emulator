@@ -19,22 +19,20 @@ package com.google.cloud.partners.pubsub.kafka.integration;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import com.google.cloud.partners.pubsub.kafka.integration.util.BaseIT;
 import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
 import com.google.cloud.pubsub.v1.Publisher;
 import com.google.cloud.pubsub.v1.Subscriber;
 import com.google.protobuf.ByteString;
 import com.google.pubsub.v1.PubsubMessage;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class SecurityGrpcIT extends BaseIT {
 

@@ -24,12 +24,6 @@ import static com.google.cloud.partners.pubsub.kafka.enums.MetricProperty.QPS;
 import static com.google.cloud.partners.pubsub.kafka.enums.MetricProperty.THROUGHPUT;
 import static java.lang.String.format;
 
-import java.time.Instant;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.cloud.partners.pubsub.kafka.common.AdminGrpc.AdminImplBase;
 import com.google.cloud.partners.pubsub.kafka.common.ConfigurationRequest;
@@ -44,6 +38,11 @@ import com.google.cloud.partners.pubsub.kafka.properties.KafkaProperties;
 import com.google.common.collect.Lists;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 class AdminImpl extends AdminImplBase {
 

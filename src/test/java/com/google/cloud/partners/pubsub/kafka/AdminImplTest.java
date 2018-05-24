@@ -28,18 +28,6 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.stream.Collectors;
-
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
-
 import com.google.cloud.partners.pubsub.kafka.common.AdminGrpc;
 import com.google.cloud.partners.pubsub.kafka.common.AdminGrpc.AdminBlockingStub;
 import com.google.cloud.partners.pubsub.kafka.common.ConfigurationRequest;
@@ -50,6 +38,16 @@ import com.google.cloud.partners.pubsub.kafka.common.StatisticsConsolidation;
 import com.google.cloud.partners.pubsub.kafka.common.StatisticsRequest;
 import com.google.cloud.partners.pubsub.kafka.common.StatisticsResponse;
 import io.grpc.testing.GrpcServerRule;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
 public class AdminImplTest {

@@ -18,10 +18,9 @@ package com.google.cloud.partners.pubsub.kafka.properties;
 
 import static com.google.common.collect.Maps.newHashMap;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import java.util.Map;
-
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class ApplicationProperties {
 

@@ -18,19 +18,17 @@ package com.google.cloud.partners.pubsub.kafka.integration;
 
 import static org.junit.Assert.assertEquals;
 
-import java.util.Set;
-import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.CountDownLatch;
-import java.util.logging.Logger;
-
-import org.junit.Test;
-
 import com.google.cloud.partners.pubsub.kafka.integration.util.BaseIT;
 import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
 import com.google.cloud.pubsub.v1.Publisher;
 import com.google.cloud.pubsub.v1.Subscriber;
 import com.google.protobuf.ByteString;
 import com.google.pubsub.v1.PubsubMessage;
+import java.util.Set;
+import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.CountDownLatch;
+import java.util.logging.Logger;
+import org.junit.Test;
 
 public class BrokerFailureIT extends BaseIT {
 
@@ -39,8 +37,6 @@ public class BrokerFailureIT extends BaseIT {
 
   /**
    * Evaluate that a Publisher/Subscriber can survive a broker failure.
-   *
-   * @throws Exception
    */
   @Test(timeout = 300000)
   public void testBrokerUpDownUp() throws Exception {

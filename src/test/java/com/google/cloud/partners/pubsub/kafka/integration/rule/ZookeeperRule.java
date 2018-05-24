@@ -18,15 +18,13 @@ package com.google.cloud.partners.pubsub.kafka.integration.rule;
 
 import static org.junit.Assert.assertTrue;
 
+import com.google.cloud.partners.pubsub.kafka.integration.util.EmbeddedZookeeper;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
 import org.junit.rules.ExternalResource;
 import org.junit.rules.TemporaryFolder;
-
-import com.google.cloud.partners.pubsub.kafka.integration.util.EmbeddedZookeeper;
 
 public class ZookeeperRule extends ExternalResource {
 

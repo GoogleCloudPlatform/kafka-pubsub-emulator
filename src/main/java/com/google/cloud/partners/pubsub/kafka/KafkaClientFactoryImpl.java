@@ -27,19 +27,17 @@ import static org.apache.kafka.clients.producer.ProducerConfig.KEY_SERIALIZER_CL
 import static org.apache.kafka.clients.producer.ProducerConfig.MAX_BLOCK_MS_CONFIG;
 import static org.apache.kafka.clients.producer.ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG;
 
+import com.google.cloud.partners.pubsub.kafka.properties.ApplicationProperties;
+import com.google.cloud.partners.pubsub.kafka.properties.ConsumerProperties;
+import com.google.cloud.partners.pubsub.kafka.properties.ProducerProperties;
 import java.nio.ByteBuffer;
 import java.util.Properties;
-
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
-
-import com.google.cloud.partners.pubsub.kafka.properties.ApplicationProperties;
-import com.google.cloud.partners.pubsub.kafka.properties.ConsumerProperties;
-import com.google.cloud.partners.pubsub.kafka.properties.ProducerProperties;
 
 /**
  * Factory implementation for building Kafka client objects based on a shared set of properties.

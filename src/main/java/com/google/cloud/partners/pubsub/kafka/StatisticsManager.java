@@ -18,16 +18,15 @@ package com.google.cloud.partners.pubsub.kafka;
 
 import static java.util.stream.Collectors.toMap;
 
+import com.google.cloud.partners.pubsub.kafka.properties.KafkaProperties;
+import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
+import com.google.protobuf.ByteString;
+import com.google.protobuf.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
-
-import com.google.cloud.partners.pubsub.kafka.properties.KafkaProperties;
-import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
-import com.google.protobuf.ByteString;
-import com.google.protobuf.Timestamp;
 
 /**
  * Responsible to collect statistics information of publish/consumed messages on emulator.

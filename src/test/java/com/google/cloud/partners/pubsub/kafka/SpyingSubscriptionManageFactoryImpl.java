@@ -18,11 +18,10 @@ package com.google.cloud.partners.pubsub.kafka;
 
 import static org.mockito.Mockito.spy;
 
+import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
-
-import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
 
 /**
  * Implementation of a {@link SubscriptionManagerFactory} that creates Mockito spies that can have

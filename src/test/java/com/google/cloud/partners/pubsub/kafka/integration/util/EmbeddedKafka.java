@@ -40,13 +40,11 @@ import static scala.collection.JavaConverters.asScalaBuffer;
 
 import java.util.ArrayList;
 import java.util.Properties;
-
-import org.apache.kafka.common.utils.Time;
-import org.junit.rules.TemporaryFolder;
-
 import kafka.server.KafkaConfig;
 import kafka.server.KafkaServer;
 import kafka.server.NotRunning;
+import org.apache.kafka.common.utils.Time;
+import org.junit.rules.TemporaryFolder;
 import scala.Option;
 
 public class EmbeddedKafka {

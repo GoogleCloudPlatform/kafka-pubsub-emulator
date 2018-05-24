@@ -19,38 +19,34 @@ package com.google.cloud.partners.pubsub.kafka;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 
+import com.google.cloud.partners.pubsub.kafka.properties.ApplicationProperties;
+import com.google.cloud.partners.pubsub.kafka.properties.PubSubBindProperties;
+import com.google.protobuf.ByteString;
+import com.google.pubsub.v1.PubsubMessage;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.apache.kafka.common.record.TimestampType;
 
-import com.google.cloud.partners.pubsub.kafka.properties.ApplicationProperties;
-import com.google.cloud.partners.pubsub.kafka.properties.PubSubBindProperties;
-import com.google.protobuf.ByteString;
-import com.google.pubsub.v1.PubsubMessage;
-
 public class TestHelpers {
 
-  protected static final String PROJECT = "cpe-ti";
   public static final Charset UTF8 = Charset.forName("UTF-8");
   public static final String SUBSCRIPTION1 = "subscription-1-to-test-topic-1";
   public static final String SUBSCRIPTION2 = "subscription-2-to-test-topic-1";
   public static final String SUBSCRIPTION3 = "subscription-1-to-test-topic-2";
   public static final String SUBSCRIPTION_NOT_EXISTS = "non-existent-subscription";
   public static final String SUBSCRIPTION_TO_DELETE = "subscription-to-delete";
-
   public static final String TOPIC1 = "test-topic-1";
   public static final String TOPIC2 = "test-topic-2";
-
   public static final String TOPIC_TO_DELETE = "topic-to-delete";
   public static final String TOPIC_NOT_EXISTS = "non-existent-topic";
+  protected static final String PROJECT = "cpe-ti";
   private static final String CONFIGURATION_UNIT_TEST =
       "src/test/resources/application-unit-test.yaml";
 
@@ -144,5 +140,4 @@ public class TestHelpers {
   protected static void resetRequestBindConfiguration() {
     Configuration.getApplicationProperties().setPubSubProperties(newHashMap());
   }
-
 }

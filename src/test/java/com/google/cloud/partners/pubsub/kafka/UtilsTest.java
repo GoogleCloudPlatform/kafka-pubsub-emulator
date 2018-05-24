@@ -19,7 +19,6 @@ package com.google.cloud.partners.pubsub.kafka;
 import static org.junit.Assert.assertEquals;
 
 import java.util.concurrent.ThreadFactory;
-
 import org.junit.Test;
 
 public class UtilsTest {

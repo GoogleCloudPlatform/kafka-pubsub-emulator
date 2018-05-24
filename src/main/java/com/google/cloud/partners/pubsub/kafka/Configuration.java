@@ -18,6 +18,14 @@ package com.google.cloud.partners.pubsub.kafka;
 
 import static com.google.common.collect.Lists.newArrayList;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.google.cloud.partners.pubsub.kafka.properties.ApplicationProperties;
+import com.google.cloud.partners.pubsub.kafka.properties.ConsumerProperties;
+import com.google.cloud.partners.pubsub.kafka.properties.ProducerProperties;
+import com.google.cloud.partners.pubsub.kafka.properties.PubSubBindProperties;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
@@ -27,20 +35,10 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.google.cloud.partners.pubsub.kafka.properties.ApplicationProperties;
-import com.google.cloud.partners.pubsub.kafka.properties.ConsumerProperties;
-import com.google.cloud.partners.pubsub.kafka.properties.ProducerProperties;
-import com.google.cloud.partners.pubsub.kafka.properties.PubSubBindProperties;
-
 public class Configuration {
 
-  private static final ObjectMapper MAPPER = getMapper();
   public static final String RESOURCE_CHAR_SEPARATOR = "/";
-
+  private static final ObjectMapper MAPPER = getMapper();
   private static ApplicationProperties properties;
 
   private Configuration() {
@@ -105,8 +103,8 @@ public class Configuration {
     return getLastNode(subscriptionPath, PubSubBindProperties::getSubscription);
   }
 
-  private static String getLastNode(String path,
-      Function<PubSubBindProperties, String> mapFunction) {
+  private static String getLastNode(
+      String path, Function<PubSubBindProperties, String> mapFunction) {
     if (path.contains(RESOURCE_CHAR_SEPARATOR)) {
       String[] pieces = path.split(RESOURCE_CHAR_SEPARATOR);
       Map<String, List<PubSubBindProperties>> pubSubProperties = properties.getPubSubProperties();
@@ -116,16 +114,16 @@ public class Configuration {
       } else {
         String project = pieces[1];
 
-        return pubSubProperties.getOrDefault(project, newArrayList())
+        return pubSubProperties
+            .getOrDefault(project, newArrayList())
             .stream()
             .map(mapFunction)
             .filter(Objects::nonNull)
             .filter(Predicate.isEqual(resource))
-            .findFirst().orElse(path);
+            .findFirst()
+            .orElse(path);
       }
     }
     return path;
   }
-
-
 }

@@ -19,6 +19,12 @@ package com.google.cloud.partners.pubsub.kafka.integration;
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
 
+import com.google.cloud.partners.pubsub.kafka.integration.util.BaseIT;
+import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
+import com.google.cloud.pubsub.v1.Publisher;
+import com.google.cloud.pubsub.v1.Subscriber;
+import com.google.protobuf.ByteString;
+import com.google.pubsub.v1.PubsubMessage;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Map;
@@ -32,17 +38,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.junit.Test;
-
-import com.google.cloud.partners.pubsub.kafka.integration.util.BaseIT;
-import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
-import com.google.cloud.pubsub.v1.Publisher;
-import com.google.cloud.pubsub.v1.Subscriber;
-import com.google.protobuf.ByteString;
-import com.google.pubsub.v1.PubsubMessage;
 
 /**
  * Integration tests for {@link com.google.cloud.partners.pubsub.kafka.PubsubEmulatorServer} using

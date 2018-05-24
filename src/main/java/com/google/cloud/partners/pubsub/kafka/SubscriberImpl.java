@@ -20,23 +20,6 @@ import static com.google.cloud.partners.pubsub.kafka.Configuration.getLastNodeIn
 import static java.lang.String.format;
 import static java.util.Objects.isNull;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Logger;
-import java.util.stream.Collectors;
-
 import com.google.cloud.partners.pubsub.kafka.properties.ConsumerProperties;
 import com.google.cloud.partners.pubsub.kafka.properties.KafkaProperties;
 import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
@@ -58,6 +41,22 @@ import io.grpc.Status;
 import io.grpc.StatusException;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 /**
  * Implementation of <a href="https://cloud.google.com/pubsub/docs/reference/rpc/google.pubsub.v1#subscriber"

@@ -20,6 +20,8 @@ import static java.util.stream.Collectors.toMap;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
+import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
+import com.google.pubsub.v1.PubsubMessage;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -31,7 +33,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.MockConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
@@ -40,9 +41,6 @@ import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.internals.RecordHeader;
 import org.junit.Before;
 import org.junit.Test;
-
-import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
-import com.google.pubsub.v1.PubsubMessage;
 
 public class SubscriptionManagerTest {
 

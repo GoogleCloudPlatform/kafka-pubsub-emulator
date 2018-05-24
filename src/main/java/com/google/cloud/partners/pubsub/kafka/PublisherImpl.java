@@ -18,25 +18,6 @@ package com.google.cloud.partners.pubsub.kafka;
 
 import static com.google.cloud.partners.pubsub.kafka.Configuration.getLastNodeInTopic;
 
-import java.nio.ByteBuffer;
-import java.time.Duration;
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Logger;
-import java.util.stream.Collectors;
-
-import org.apache.kafka.clients.producer.Producer;
-import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.header.Headers;
-import org.apache.kafka.common.header.internals.RecordHeader;
-import org.apache.kafka.common.header.internals.RecordHeaders;
-
 import com.google.cloud.partners.pubsub.kafka.properties.ConsumerProperties;
 import com.google.cloud.partners.pubsub.kafka.properties.ProducerProperties;
 import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
@@ -54,6 +35,23 @@ import com.google.pubsub.v1.PubsubMessage;
 import com.google.pubsub.v1.Topic;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+import java.nio.ByteBuffer;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
+import org.apache.kafka.clients.producer.Producer;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.header.Headers;
+import org.apache.kafka.common.header.internals.RecordHeader;
+import org.apache.kafka.common.header.internals.RecordHeaders;
 
 /**
  * Implementation of <a href="https://cloud.google.com/pubsub/docs/reference/rpc/google.pubsub.v1#publisher"
@@ -270,5 +268,4 @@ class PublisherImpl extends PublisherImplBase {
     responseObserver.onNext(response);
     responseObserver.onCompleted();
   }
-
 }

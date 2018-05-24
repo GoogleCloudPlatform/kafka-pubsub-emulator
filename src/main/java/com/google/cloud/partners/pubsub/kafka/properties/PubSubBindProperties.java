@@ -24,9 +24,13 @@ public class PubSubBindProperties {
 
   @Override
   public String toString() {
-    return "PubSubBindProperties{" +
-        "topic='" + topic + '\'' +
-        ", subscription='" + subscription + '\'' +
-        '}';
+    return "PubSubBindProperties{"
+        + "topic='"
+        + topic
+        + '\''
+        + ", subscription='"
+        + subscription
+        + '\''
+        + '}';
   }
 }

@@ -18,18 +18,16 @@ package com.google.cloud.partners.pubsub.kafka;
 
 import static org.junit.Assert.assertEquals;
 
+import com.google.protobuf.ByteString;
+import com.google.protobuf.Timestamp;
 import java.nio.charset.Charset;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Map;
-
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import com.google.protobuf.ByteString;
-import com.google.protobuf.Timestamp;
 
 public class StatisticsManagerTest {
 

@@ -17,7 +17,6 @@
 package com.google.cloud.partners.pubsub.kafka;
 
 import java.nio.ByteBuffer;
-
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.producer.Producer;
 

@@ -18,18 +18,6 @@ package com.google.cloud.partners.pubsub.kafka;
 
 import static io.grpc.health.v1.HealthCheckResponse.ServingStatus.SERVING;
 
-import java.io.File;
-import java.io.IOException;
-import java.time.Clock;
-import java.util.Objects;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.ForkJoinPool.ForkJoinWorkerThreadFactory;
-import java.util.concurrent.ForkJoinWorkerThread;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.Parameters;
@@ -47,6 +35,17 @@ import io.netty.channel.ServerChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.util.concurrent.DefaultThreadFactory;
+import java.io.File;
+import java.io.IOException;
+import java.time.Clock;
+import java.util.Objects;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinPool.ForkJoinWorkerThreadFactory;
+import java.util.concurrent.ForkJoinWorkerThread;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * An implementation of the Cloud Pub/Sub service built on top of Apache Kafka's messaging system.
@@ -59,13 +58,15 @@ public class PubsubEmulatorServer {
 
   @Parameter(
       names = {"--help"},
-      help = true)
+      help = true
+  )
   private boolean help = false;
 
   @Parameter(
       names = {"--configuration.location"},
       required = true,
-      description = "Path of the file that contains the application configuration.")
+      description = "Path of the file that contains the application configuration."
+  )
   private String configurationLocation;
 
   private PublisherImpl publisher;
