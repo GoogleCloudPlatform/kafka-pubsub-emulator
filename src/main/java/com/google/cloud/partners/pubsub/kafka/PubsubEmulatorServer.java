@@ -57,15 +57,15 @@ public class PubsubEmulatorServer {
   private static final int MAX_MESSAGE_SIZE = 1000 * 1000 * 10; // 10MB
 
   @Parameter(
-      names = {"--help"},
-      help = true
+    names = {"--help"},
+    help = true
   )
   private boolean help = false;
 
   @Parameter(
-      names = {"--configuration.location"},
-      required = true,
-      description = "Path of the file that contains the application configuration."
+    names = {"--configuration.location"},
+    required = true,
+    description = "Path of the file that contains the application configuration."
   )
   private String configurationLocation;
 
@@ -97,9 +97,7 @@ public class PubsubEmulatorServer {
     }
   }
 
-  /**
-   * Start the server and add a hook that calls {@link #stop()} when the JVM is shutting down.
-   */
+  /** Start the server and add a hook that calls {@link #stop()} when the JVM is shutting down. */
   public void start() throws IOException {
     ApplicationProperties applicationProperties = Configuration.getApplicationProperties();
 
@@ -129,18 +127,14 @@ public class PubsubEmulatorServer {
                 }));
   }
 
-  /**
-   * Add status information to healthcheck for each service.
-   */
+  /** Add status information to healthcheck for each service. */
   private void startHealthcheckServices() {
     healthStatusManager.setStatus(PublisherGrpc.SERVICE_NAME, SERVING);
     healthStatusManager.setStatus(SubscriberGrpc.SERVICE_NAME, SERVING);
     healthStatusManager.setStatus(AdminGrpc.SERVICE_NAME, SERVING);
   }
 
-  /**
-   * Stop serving requests, then shutdown Publisher and Subscriber services.
-   */
+  /** Stop serving requests, then shutdown Publisher and Subscriber services. */
   public void stop() {
     if (server != null) {
       server.shutdownNow();
@@ -149,9 +143,7 @@ public class PubsubEmulatorServer {
     subscriber.shutdown();
   }
 
-  /**
-   * Await termination on the main thread since the gRPC library uses daemon threads.
-   */
+  /** Await termination on the main thread since the gRPC library uses daemon threads. */
   public void blockUntilShutdown() throws InterruptedException {
     if (server != null) {
       server.awaitTermination();

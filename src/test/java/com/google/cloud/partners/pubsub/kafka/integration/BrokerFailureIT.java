@@ -35,9 +35,7 @@ public class BrokerFailureIT extends BaseIT {
   private static final Logger LOGGER = Logger.getLogger(BrokerFailureIT.class.getName());
   private static final String TOPIC = "broker-failure";
 
-  /**
-   * Evaluate that a Publisher/Subscriber can survive a broker failure.
-   */
+  /** Evaluate that a Publisher/Subscriber can survive a broker failure. */
   @Test(timeout = 300000)
   public void testBrokerUpDownUp() throws Exception {
     SubscriptionProperties subscriptionProperties = getSubscriptionPropertiesByTopic(TOPIC);

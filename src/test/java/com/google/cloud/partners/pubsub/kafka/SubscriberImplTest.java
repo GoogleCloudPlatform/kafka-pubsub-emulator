@@ -81,14 +81,12 @@ public class SubscriberImplTest {
   public static final String PROJECT_SUBSCRIPTION_FORMAT = "projects/%s/subscriptions/%s";
   private static final String MESSAGE_CONTENT_REGEX = "message-[0-9]{4}";
   private static final String NEW_SUBSCRIPTION = "new-subscription";
-  @Rule
-  public final GrpcServerRule grpcServerRule = new GrpcServerRule();
+  @Rule public final GrpcServerRule grpcServerRule = new GrpcServerRule();
   private SubscriberGrpc.SubscriberBlockingStub blockingStub;
   private MockKafkaClientFactoryImpl kafkaClientFactory;
   private SpyingSubscriptionManageFactoryImpl subscriptionManageFactory;
   private SubscriberImpl subscriber;
-  @Mock
-  private StatisticsManager statisticsManager;
+  @Mock private StatisticsManager statisticsManager;
 
   @BeforeClass
   public static void setUpBeforeClass() {
@@ -636,8 +634,7 @@ public class SubscriberImplTest {
         asyncStub.streamingPull(
             new StreamObserver<StreamingPullResponse>() {
               @Override
-              public void onNext(StreamingPullResponse streamingPullResponse) {
-              }
+              public void onNext(StreamingPullResponse streamingPullResponse) {}
 
               @Override
               public void onError(Throwable throwable) {
@@ -645,8 +642,7 @@ public class SubscriberImplTest {
               }
 
               @Override
-              public void onCompleted() {
-              }
+              public void onCompleted() {}
             });
     StreamingPullRequest request =
         StreamingPullRequest.newBuilder().setSubscription(SUBSCRIPTION_NOT_EXISTS).build();
@@ -666,8 +662,7 @@ public class SubscriberImplTest {
         asyncStub.streamingPull(
             new StreamObserver<StreamingPullResponse>() {
               @Override
-              public void onNext(StreamingPullResponse streamingPullResponse) {
-              }
+              public void onNext(StreamingPullResponse streamingPullResponse) {}
 
               @Override
               public void onError(Throwable throwable) {
@@ -675,8 +670,7 @@ public class SubscriberImplTest {
               }
 
               @Override
-              public void onCompleted() {
-              }
+              public void onCompleted() {}
             });
     StreamingPullRequest request =
         StreamingPullRequest.newBuilder()
@@ -715,8 +709,7 @@ public class SubscriberImplTest {
               }
 
               @Override
-              public void onCompleted() {
-              }
+              public void onCompleted() {}
             });
     StreamingPullRequest request =
         StreamingPullRequest.newBuilder().setSubscription(SUBSCRIPTION1).build();
@@ -759,8 +752,7 @@ public class SubscriberImplTest {
               }
 
               @Override
-              public void onCompleted() {
-              }
+              public void onCompleted() {}
             });
     StreamingPullRequest request =
         StreamingPullRequest.newBuilder().setSubscription(SUBSCRIPTION1).build();
@@ -832,8 +824,7 @@ public class SubscriberImplTest {
               }
 
               @Override
-              public void onCompleted() {
-              }
+              public void onCompleted() {}
             });
     StreamingPullRequest request =
         StreamingPullRequest.newBuilder()
@@ -905,8 +896,7 @@ public class SubscriberImplTest {
               }
 
               @Override
-              public void onCompleted() {
-              }
+              public void onCompleted() {}
             });
     StreamingPullRequest request =
         StreamingPullRequest.newBuilder()
@@ -960,8 +950,7 @@ public class SubscriberImplTest {
               }
 
               @Override
-              public void onCompleted() {
-              }
+              public void onCompleted() {}
             });
     StreamingPullRequest request =
         StreamingPullRequest.newBuilder().setSubscription(SUBSCRIPTION1).build();
@@ -1039,8 +1028,7 @@ public class SubscriberImplTest {
               }
 
               @Override
-              public void onCompleted() {
-              }
+              public void onCompleted() {}
             });
     StreamingPullRequest request =
         StreamingPullRequest.newBuilder().setSubscription(SUBSCRIPTION1).build();
@@ -1063,9 +1051,7 @@ public class SubscriberImplTest {
     }
   }
 
-  /**
-   * Add a brief delay to allow for messages to reach the server
-   */
+  /** Add a brief delay to allow for messages to reach the server */
   private void waitForMessageReceipt() {
     try {
       Thread.sleep(50);

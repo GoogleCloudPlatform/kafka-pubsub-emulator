@@ -18,9 +18,7 @@ package com.google.cloud.partners.pubsub.kafka;
 
 import java.util.concurrent.atomic.LongAdder;
 
-/**
- * Class to consolidate information of emulator, contain some calculation rules.
- */
+/** Class to consolidate information of emulator, contain some calculation rules. */
 public class StatisticsInformation {
 
   private final LongAdder count = new LongAdder();

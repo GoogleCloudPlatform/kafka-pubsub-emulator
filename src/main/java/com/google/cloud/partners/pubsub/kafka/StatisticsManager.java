@@ -28,9 +28,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
-/**
- * Responsible to collect statistics information of publish/consumed messages on emulator.
- */
+/** Responsible to collect statistics information of publish/consumed messages on emulator. */
 public class StatisticsManager {
 
   private static final Logger LOGGER = Logger.getLogger(StatisticsManager.class.getName());

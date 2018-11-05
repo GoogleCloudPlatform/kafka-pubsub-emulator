@@ -58,11 +58,9 @@ public class AdminImplTest {
   private static final int EXECUTOR_PRODUCER = 1;
 
   private static final int EXECUTOR_SUBSCRIBER = 1;
-  @Rule
-  public final GrpcServerRule grpcServerRule = new GrpcServerRule().directExecutor();
+  @Rule public final GrpcServerRule grpcServerRule = new GrpcServerRule().directExecutor();
   private AdminBlockingStub blockingStub;
-  @Mock
-  private StatisticsManager statisticsManager;
+  @Mock private StatisticsManager statisticsManager;
 
   @BeforeClass
   public static void setUpBeforeClass() {

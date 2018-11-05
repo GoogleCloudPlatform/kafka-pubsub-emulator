@@ -77,15 +77,13 @@ public class PublisherImplTest {
       Executors.newSingleThreadScheduledExecutor();
   private static final String PROJECT_TOPIC_FORMAT = "projects/%s/topics/%s";
 
-  @Rule
-  public final GrpcServerRule grpcServerRule = new GrpcServerRule().directExecutor();
+  @Rule public final GrpcServerRule grpcServerRule = new GrpcServerRule().directExecutor();
 
   private PublisherGrpc.PublisherBlockingStub blockingStub;
   private MockKafkaClientFactoryImpl kafkaClientFactory;
   private PublisherImpl publisher;
 
-  @Mock
-  private StatisticsManager statisticsManager;
+  @Mock private StatisticsManager statisticsManager;
 
   @BeforeClass
   public static void setUpBeforeClass() {

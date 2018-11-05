@@ -41,8 +41,7 @@ public class Configuration {
   private static final ObjectMapper MAPPER = getMapper();
   private static ApplicationProperties properties;
 
-  private Configuration() {
-  }
+  private Configuration() {}
 
   public static void loadApplicationProperties(String location) {
     try {

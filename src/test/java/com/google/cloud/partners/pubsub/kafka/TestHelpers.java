@@ -50,9 +50,7 @@ public class TestHelpers {
   private static final String CONFIGURATION_UNIT_TEST =
       "src/test/resources/application-unit-test.yaml";
 
-  /**
-   * Sets application Configuration for unit tests.
-   */
+  /** Sets application Configuration for unit tests. */
   public static void useTestApplicationConfig(int producers, int consumersPerSubscription) {
     Configuration.loadApplicationProperties(CONFIGURATION_UNIT_TEST);
     ApplicationProperties applicationConfig = Configuration.getApplicationProperties();
@@ -63,9 +61,7 @@ public class TestHelpers {
     applicationConfig.getKafkaProperties().getProducerProperties().setExecutors(producers);
   }
 
-  /**
-   * Generate a sequence of PubsubMessage objects.
-   */
+  /** Generate a sequence of PubsubMessage objects. */
   public static List<PubsubMessage> generatePubsubMessages(int howMany) {
     List<PubsubMessage> messages = new ArrayList<>();
     for (int i = 0; i < howMany; i++) {

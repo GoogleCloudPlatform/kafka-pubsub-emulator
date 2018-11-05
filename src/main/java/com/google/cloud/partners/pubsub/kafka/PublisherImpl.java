@@ -54,7 +54,8 @@ import org.apache.kafka.common.header.internals.RecordHeader;
 import org.apache.kafka.common.header.internals.RecordHeaders;
 
 /**
- * Implementation of <a href="https://cloud.google.com/pubsub/docs/reference/rpc/google.pubsub.v1#publisher"
+ * Implementation of <a
+ * href="https://cloud.google.com/pubsub/docs/reference/rpc/google.pubsub.v1#publisher"
  * target="_blank"> Cloud Pub/Sub Publisher API.</a>
  *
  * <p>Utilizes up to {@link ProducerProperties#getExecutors()} KafkaProducers to publish messages to
@@ -97,9 +98,7 @@ class PublisherImpl extends PublisherImplBase {
     nextProducerIndex = new AtomicInteger();
   }
 
-  /**
-   * Shutdown hook should close all Producers.
-   */
+  /** Shutdown hook should close all Producers. */
   public void shutdown() {
     for (Producer<String, ByteBuffer> producer : kafkaProducers) {
       producer.close();

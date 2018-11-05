@@ -39,9 +39,7 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 
-/**
- * Factory implementation for building Kafka client objects based on a shared set of properties.
- */
+/** Factory implementation for building Kafka client objects based on a shared set of properties. */
 public class KafkaClientFactoryImpl implements KafkaClientFactory {
 
   private static final String ACKS_CONFIG_VALUE = "all";
@@ -88,9 +86,7 @@ public class KafkaClientFactoryImpl implements KafkaClientFactory {
     return new KafkaConsumer<>(properties);
   }
 
-  /**
-   * Builds and returns a new KafkaProducer object.
-   */
+  /** Builds and returns a new KafkaProducer object. */
   @Override
   public Producer<String, ByteBuffer> createProducer() {
     ProducerProperties producerProperties =

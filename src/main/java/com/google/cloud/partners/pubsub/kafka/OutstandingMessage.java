@@ -58,9 +58,7 @@ public final class OutstandingMessage {
     this.acknowledged = acknowledged;
   }
 
-  /**
-   * Adds {@code seconds} to the expiration timestamp and returns the new value.
-   */
+  /** Adds {@code seconds} to the expiration timestamp and returns the new value. */
   public Instant addSecondsToDeadline(int seconds) {
     expiresAt = expiresAt.plusSeconds(seconds);
     return expiresAt;
@@ -99,9 +97,7 @@ public final class OutstandingMessage {
         + '}';
   }
 
-  /**
-   * {@code OutstandingMessage} builder static inner class.
-   */
+  /** {@code OutstandingMessage} builder static inner class. */
   public static final class Builder {
 
     private Instant pulledAt;
@@ -110,8 +106,7 @@ public final class OutstandingMessage {
     private int partition;
     private long offset;
 
-    private Builder() {
-    }
+    private Builder() {}
 
     /**
      * Sets the {@code messageId} and returns a reference to this Builder so that the methods can be
@@ -171,7 +166,7 @@ public final class OutstandingMessage {
      * Returns a {@code OutstandingMessage} built from the parameters previously set.
      *
      * @return a {@code OutstandingMessage} built with parameters of this {@code
-     * OutstandingMessage.Builder}
+     *     OutstandingMessage.Builder}
      */
     public OutstandingMessage build() {
       return new OutstandingMessage(this);

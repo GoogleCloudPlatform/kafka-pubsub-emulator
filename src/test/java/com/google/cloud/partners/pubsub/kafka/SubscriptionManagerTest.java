@@ -421,9 +421,7 @@ public class SubscriptionManagerTest {
     }
   }
 
-  /**
-   * Sets {@link this#subscriptionManager} with specified configuration parameters
-   */
+  /** Sets {@link this#subscriptionManager} with specified configuration parameters */
   private void configureSubscriptionManager(
       int consumersPerSubscription, int topicPartitions, int ackDeadlineSecs) {
     TestHelpers.useTestApplicationConfig(1, consumersPerSubscription);
