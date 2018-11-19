@@ -24,6 +24,7 @@ import com.google.cloud.partners.pubsub.kafka.properties.ConsumerProperties;
 import com.google.cloud.partners.pubsub.kafka.properties.KafkaProperties;
 import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
 import com.google.protobuf.Empty;
+import com.google.protobuf.UnknownFieldSet;
 import com.google.pubsub.v1.AcknowledgeRequest;
 import com.google.pubsub.v1.DeleteSubscriptionRequest;
 import com.google.pubsub.v1.GetSubscriptionRequest;
@@ -32,6 +33,7 @@ import com.google.pubsub.v1.ListSubscriptionsResponse;
 import com.google.pubsub.v1.ModifyAckDeadlineRequest;
 import com.google.pubsub.v1.PullRequest;
 import com.google.pubsub.v1.PullResponse;
+import com.google.pubsub.v1.PushConfig;
 import com.google.pubsub.v1.ReceivedMessage;
 import com.google.pubsub.v1.StreamingPullRequest;
 import com.google.pubsub.v1.StreamingPullResponse;
@@ -324,6 +326,11 @@ class SubscriberImpl extends SubscriberImplBase {
     return Subscription.newBuilder()
         .setName(configuration.getName())
         .setTopic(configuration.getTopic())
+        .setPushConfig(
+            PushConfig.newBuilder()
+                .setPushEndpoint("")
+                .setUnknownFields(UnknownFieldSet.newBuilder().build())
+                .build())
         .setAckDeadlineSeconds(configuration.getAckDeadlineSeconds())
         .build();
   }
