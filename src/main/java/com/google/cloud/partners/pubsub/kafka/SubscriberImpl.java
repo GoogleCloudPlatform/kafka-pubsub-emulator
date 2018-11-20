@@ -32,6 +32,7 @@ import com.google.pubsub.v1.ListSubscriptionsResponse;
 import com.google.pubsub.v1.ModifyAckDeadlineRequest;
 import com.google.pubsub.v1.PullRequest;
 import com.google.pubsub.v1.PullResponse;
+import com.google.pubsub.v1.PushConfig;
 import com.google.pubsub.v1.ReceivedMessage;
 import com.google.pubsub.v1.StreamingPullRequest;
 import com.google.pubsub.v1.StreamingPullResponse;
@@ -324,6 +325,7 @@ class SubscriberImpl extends SubscriberImplBase {
     return Subscription.newBuilder()
         .setName(configuration.getName())
         .setTopic(configuration.getTopic())
+        .setPushConfig(PushConfig.getDefaultInstance())
         .setAckDeadlineSeconds(configuration.getAckDeadlineSeconds())
         .build();
   }
