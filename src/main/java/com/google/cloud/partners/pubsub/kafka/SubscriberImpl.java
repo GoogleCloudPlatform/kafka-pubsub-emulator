@@ -160,8 +160,9 @@ class SubscriberImpl extends SubscriberImplBase {
   public void deleteSubscription(
       DeleteSubscriptionRequest request, StreamObserver<Empty> responseObserver) {
     try {
+      String subscription = Configuration.getLastNodeInSubscription(request.getSubscription());
       SubscriptionManager subscriptionManager =
-          Optional.ofNullable(subscriptions.get(request.getSubscription()))
+          Optional.ofNullable(subscriptions.get(subscription))
               .orElseThrow(
                   () -> Status.NOT_FOUND.withDescription("Subscription not found.").asException());
       subscriptionManager.shutdown();
@@ -175,9 +176,9 @@ class SubscriberImpl extends SubscriberImplBase {
               .getSubscriptions()
               .stream()
               .filter(
-                  subscriptionProperties ->
-                      subscriptionProperties.getName().equals(request.getSubscription()))
+                  subscriptionProperties -> subscriptionProperties.getName().equals(subscription))
               .map(SubscriptionProperties::getTopic)
+              .map(Configuration::getLastNodeInTopic)
               .findFirst()
               .orElseThrow(
                   () -> Status.NOT_FOUND.withDescription("Topic not found.").asException());
@@ -187,13 +188,15 @@ class SubscriberImpl extends SubscriberImplBase {
           .getConsumerProperties()
           .getSubscriptions()
           .removeIf(
-              subscriptionProperties ->
-                  subscriptionProperties.getName().equals(request.getSubscription()));
+              subscriptionProperties -> subscriptionProperties.getName().equals(subscription));
 
       // verify if not contains anymore topic remove subscriber information from statistics.
       if (!kafkaProperties.getTopics().contains(topic)) {
         statisticsManager.removeSubscriberInformation(topic);
       }
+
+      // remove from subscriptions map
+      subscriptions.remove(subscription);
 
       responseObserver.onNext(Empty.newBuilder().build());
       responseObserver.onCompleted();
@@ -282,8 +285,8 @@ class SubscriberImpl extends SubscriberImplBase {
 
   @Override
   public void acknowledge(AcknowledgeRequest request, StreamObserver<Empty> responseObserver) {
-    String subscription = getLastNodeInSubscription(request.getSubscription());
-    SubscriptionManager subscriptionManager = subscriptions.get(subscription);
+    SubscriptionManager subscriptionManager =
+        subscriptions.get(getLastNodeInSubscription(request.getSubscription()));
     if (subscriptionManager == null) {
       String message = request.getSubscription() + " is not a valid Subscription";
       LOGGER.warning(message);
@@ -333,16 +336,21 @@ class SubscriberImpl extends SubscriberImplBase {
   private SubscriptionProperties buildSubscriptionProperty(Subscription request) {
     SubscriptionProperties properties = new SubscriptionProperties();
     properties.setAckDeadlineSeconds(request.getAckDeadlineSeconds());
-    properties.setName(request.getName());
-    properties.setTopic(request.getTopic());
+    properties.setName(Configuration.getLastNodeInSubscription(request.getName()));
+    properties.setTopic(Configuration.getLastNodeInTopic(request.getTopic()));
     return properties;
   }
 
   private void validateCreation(Subscription request) throws StatusException {
     KafkaProperties kafkaProperties = Configuration.getApplicationProperties().getKafkaProperties();
 
-    if (!kafkaProperties.getTopics().contains(request.getTopic())) {
-      throw Status.NOT_FOUND.withDescription("Topic not found.").asException();
+    if (!kafkaProperties
+        .getTopics()
+        .contains(Configuration.getLastNodeInTopic(request.getTopic()))) {
+      throw Status.NOT_FOUND
+          .withDescription(
+              "Topic not found: " + Configuration.getLastNodeInTopic(request.getTopic()))
+          .asException();
     }
 
     List<String> subscriptions =
@@ -351,9 +359,10 @@ class SubscriberImpl extends SubscriberImplBase {
             .getSubscriptions()
             .stream()
             .map(SubscriptionProperties::getName)
+            .map(Configuration::getLastNodeInSubscription)
             .collect(Collectors.toList());
 
-    if (subscriptions.contains(request.getName())) {
+    if (subscriptions.contains(Configuration.getLastNodeInSubscription(request.getName()))) {
       throw Status.ALREADY_EXISTS.withDescription("Subscription already exists.").asException();
     }
   }

@@ -37,16 +37,25 @@ import org.apache.kafka.common.record.TimestampType;
 public class TestHelpers {
 
   public static final Charset UTF8 = Charset.forName("UTF-8");
+  protected static final String PROJECT = "cpe-ti";
   public static final String SUBSCRIPTION1 = "subscription-1-to-test-topic-1";
   public static final String SUBSCRIPTION2 = "subscription-2-to-test-topic-1";
   public static final String SUBSCRIPTION3 = "subscription-1-to-test-topic-2";
+  public static final String NEW_SUBSCRIPTION1 = "new-subscription1";
+  public static final String NEW_SUBSCRIPTION2 = "new-subscription2";
+  public static final String NEW_SUBSCRIPTION2_FORMATTED =
+      "projects/cpe-ti/subscriptions/new-subscription2";
   public static final String SUBSCRIPTION_NOT_EXISTS = "non-existent-subscription";
-  public static final String SUBSCRIPTION_TO_DELETE = "subscription-to-delete";
+  public static final String SUBSCRIPTION_TO_DELETE1 = "subscription-to-delete-1";
+  public static final String SUBSCRIPTION_TO_DELETE2 = "subscription-to-delete-2";
+  public static final String SUBSCRIPTION_TO_DELETE2_FORMATTED =
+      "projects/cpe-ti/subscriptions/subscription-to-delete-2";
   public static final String TOPIC1 = "test-topic-1";
   public static final String TOPIC2 = "test-topic-2";
-  public static final String TOPIC_TO_DELETE = "topic-to-delete";
-  public static final String TOPIC_NOT_EXISTS = "non-existent-topic";
-  protected static final String PROJECT = "cpe-ti";
+  public static final String TOPIC2_FORMATTED = "projects/cpe-ti/topics/test-topic-2";
+  public static final String TOPIC_TO_DELETE1 = "topic-to-delete1";
+  public static final String TOPIC_TO_DELETE2 = "topic-to-delete2";
+  static final String TOPIC_NOT_EXISTS = "non-existent-topic";
   private static final String CONFIGURATION_UNIT_TEST =
       "src/test/resources/application-unit-test.yaml";
 
@@ -122,7 +131,12 @@ public class TestHelpers {
 
   protected static void setupRequestBindConfiguration() {
     Map<String, List<PubSubBindProperties>> pubSubProperties = newHashMap();
-    pubSubProperties.put(PROJECT, newArrayList(givenPubSubBindProperty(SUBSCRIPTION1, TOPIC2)));
+    pubSubProperties.put(
+        PROJECT,
+        newArrayList(
+            givenPubSubBindProperty(SUBSCRIPTION1, TOPIC2),
+            givenPubSubBindProperty(NEW_SUBSCRIPTION2, TOPIC2),
+            givenPubSubBindProperty(SUBSCRIPTION_TO_DELETE2_FORMATTED, TOPIC_TO_DELETE2)));
     Configuration.getApplicationProperties().setPubSubProperties(pubSubProperties);
   }
 
