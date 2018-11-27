@@ -17,6 +17,7 @@
 package com.google.cloud.partners.pubsub.kafka;
 
 import static com.google.cloud.partners.pubsub.kafka.Configuration.getLastNodeInSubscription;
+import static com.google.cloud.partners.pubsub.kafka.Configuration.getLastNodeInTopic;
 import static java.lang.String.format;
 import static java.util.Objects.isNull;
 
@@ -160,7 +161,7 @@ class SubscriberImpl extends SubscriberImplBase {
   public void deleteSubscription(
       DeleteSubscriptionRequest request, StreamObserver<Empty> responseObserver) {
     try {
-      String subscription = Configuration.getLastNodeInSubscription(request.getSubscription());
+      String subscription = getLastNodeInSubscription(request.getSubscription());
       SubscriptionManager subscriptionManager =
           Optional.ofNullable(subscriptions.get(subscription))
               .orElseThrow(
@@ -336,20 +337,17 @@ class SubscriberImpl extends SubscriberImplBase {
   private SubscriptionProperties buildSubscriptionProperty(Subscription request) {
     SubscriptionProperties properties = new SubscriptionProperties();
     properties.setAckDeadlineSeconds(request.getAckDeadlineSeconds());
-    properties.setName(Configuration.getLastNodeInSubscription(request.getName()));
-    properties.setTopic(Configuration.getLastNodeInTopic(request.getTopic()));
+    properties.setName(getLastNodeInSubscription(request.getName()));
+    properties.setTopic(getLastNodeInTopic(request.getTopic()));
     return properties;
   }
 
   private void validateCreation(Subscription request) throws StatusException {
     KafkaProperties kafkaProperties = Configuration.getApplicationProperties().getKafkaProperties();
 
-    if (!kafkaProperties
-        .getTopics()
-        .contains(Configuration.getLastNodeInTopic(request.getTopic()))) {
+    if (!kafkaProperties.getTopics().contains(getLastNodeInTopic(request.getTopic()))) {
       throw Status.NOT_FOUND
-          .withDescription(
-              "Topic not found: " + Configuration.getLastNodeInTopic(request.getTopic()))
+          .withDescription("Topic not found: " + getLastNodeInTopic(request.getTopic()))
           .asException();
     }
 
@@ -362,7 +360,7 @@ class SubscriberImpl extends SubscriberImplBase {
             .map(Configuration::getLastNodeInSubscription)
             .collect(Collectors.toList());
 
-    if (subscriptions.contains(Configuration.getLastNodeInSubscription(request.getName()))) {
+    if (subscriptions.contains(getLastNodeInSubscription(request.getName()))) {
       throw Status.ALREADY_EXISTS.withDescription("Subscription already exists.").asException();
     }
   }
