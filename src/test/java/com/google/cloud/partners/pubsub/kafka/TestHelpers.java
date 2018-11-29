@@ -55,7 +55,7 @@ public class TestHelpers {
   public static final String TOPIC2_FORMATTED = "projects/cpe-ti/topics/test-topic-2";
   public static final String TOPIC_TO_DELETE1 = "topic-to-delete1";
   public static final String TOPIC_TO_DELETE2 = "topic-to-delete2";
-  static final String TOPIC_NOT_EXISTS = "non-existent-topic";
+  public static final String TOPIC_NOT_EXISTS = "non-existent-topic";
   private static final String CONFIGURATION_UNIT_TEST =
       "src/test/resources/application-unit-test.yaml";
 
