@@ -107,24 +107,6 @@ public class SubscriberImplTest {
   public static void setUpBeforeClass() {
 
     TestHelpers.useTestApplicationConfig(1, 1);
-
-    List<SubscriptionProperties> subscriptions =
-        Configuration.getApplicationProperties()
-            .getKafkaProperties()
-            .getConsumerProperties()
-            .getSubscriptions();
-
-    SubscriptionProperties subscriptionProperties1 = new SubscriptionProperties();
-    subscriptionProperties1.setTopic(TOPIC_TO_DELETE1);
-    subscriptionProperties1.setName(SUBSCRIPTION_TO_DELETE1);
-    subscriptionProperties1.setAckDeadlineSeconds(10);
-    subscriptions.add(subscriptionProperties1);
-
-    SubscriptionProperties subscriptionProperties2 = new SubscriptionProperties();
-    subscriptionProperties2.setTopic(TOPIC_TO_DELETE2);
-    subscriptionProperties2.setName(SUBSCRIPTION_TO_DELETE2_FORMATTED);
-    subscriptionProperties2.setAckDeadlineSeconds(10);
-    subscriptions.add(subscriptionProperties2);
   }
 
   @Before
@@ -134,12 +116,12 @@ public class SubscriberImplTest {
     kafkaClientFactory.configureConsumersForSubscription(TOPIC1, SUBSCRIPTION1, 3, 0L, 0L);
     kafkaClientFactory.configureConsumersForSubscription(TOPIC1, SUBSCRIPTION2, 3, 0L, 0L);
     kafkaClientFactory.configureConsumersForSubscription(TOPIC2, SUBSCRIPTION3, 3, 0L, 0L);
+    kafkaClientFactory.configureConsumersForSubscription(TOPIC1, NEW_SUBSCRIPTION1, 3, 0L, 0L);
+    kafkaClientFactory.configureConsumersForSubscription(TOPIC2, NEW_SUBSCRIPTION2, 3, 0L, 0L);
     kafkaClientFactory.configureConsumersForSubscription(
         TOPIC_TO_DELETE1, SUBSCRIPTION_TO_DELETE1, 3, 0L, 0L);
     kafkaClientFactory.configureConsumersForSubscription(
         TOPIC_TO_DELETE2, SUBSCRIPTION_TO_DELETE2_FORMATTED, 3, 0L, 0L);
-    kafkaClientFactory.configureConsumersForSubscription(TOPIC1, NEW_SUBSCRIPTION1, 3, 0L, 0L);
-    kafkaClientFactory.configureConsumersForSubscription(TOPIC2, NEW_SUBSCRIPTION2, 3, 0L, 0L);
 
     subscriptionManageFactory = new SpyingSubscriptionManageFactoryImpl();
     subscriber =
@@ -276,6 +258,12 @@ public class SubscriberImplTest {
   @Test
   public void deleteSubscription() {
     try {
+      SubscriptionProperties subscriptionToDelete = new SubscriptionProperties();
+      subscriptionToDelete.setTopic(TOPIC_TO_DELETE1);
+      subscriptionToDelete.setName(SUBSCRIPTION_TO_DELETE1);
+      subscriptionToDelete.setAckDeadlineSeconds(10);
+      subscriber.createSubscription(subscriptionToDelete);
+
       DeleteSubscriptionRequest request =
           DeleteSubscriptionRequest.newBuilder().setSubscription(SUBSCRIPTION_TO_DELETE1).build();
       blockingStub.deleteSubscription(request);
@@ -313,6 +301,12 @@ public class SubscriberImplTest {
   @Test
   public void deleteSubscriptionFormatted() {
     try {
+      SubscriptionProperties subscriptionToDelete = new SubscriptionProperties();
+      subscriptionToDelete.setTopic(TOPIC_TO_DELETE2);
+      subscriptionToDelete.setName(SUBSCRIPTION_TO_DELETE2_FORMATTED);
+      subscriptionToDelete.setAckDeadlineSeconds(10);
+      subscriber.createSubscription(subscriptionToDelete);
+
       DeleteSubscriptionRequest request =
           DeleteSubscriptionRequest.newBuilder()
               .setSubscription(SUBSCRIPTION_TO_DELETE2_FORMATTED)
