@@ -136,25 +136,25 @@ class SubscriberImpl extends SubscriberImplBase {
       Subscription request, StreamObserver<Subscription> responseObserver) {
     try {
       validateCreation(request);
-      SubscriptionProperties subscriptionProperties = buildSubscriptionProperty(request);
-      Configuration.getApplicationProperties()
-          .getKafkaProperties()
-          .getConsumerProperties()
-          .getSubscriptions()
-          .add(subscriptionProperties);
-
-      SubscriptionManager subscriptionManager =
-          subscriptionManagerFactory.create(
-              subscriptionProperties, kafkaClientFactory, commitExecutorService);
-
-      subscriptions.put(subscriptionProperties.getName(), subscriptionManager);
-      statisticsManager.addSubscriberInformation(subscriptionProperties);
-
+      createSubscription(buildSubscriptionProperty(request));
       responseObserver.onNext(request);
       responseObserver.onCompleted();
     } catch (StatusException e) {
       responseObserver.onError(e);
     }
+  }
+
+  public void createSubscription(SubscriptionProperties subscriptionProperties) {
+    Configuration.getApplicationProperties()
+        .getKafkaProperties()
+        .getConsumerProperties()
+        .getSubscriptions()
+        .add(subscriptionProperties);
+    subscriptions.put(
+        subscriptionProperties.getName(),
+        subscriptionManagerFactory.create(
+            subscriptionProperties, kafkaClientFactory, commitExecutorService));
+    statisticsManager.addSubscriberInformation(subscriptionProperties);
   }
 
   @Override
