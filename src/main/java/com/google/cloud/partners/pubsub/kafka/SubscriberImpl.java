@@ -136,7 +136,7 @@ class SubscriberImpl extends SubscriberImplBase {
       Subscription request, StreamObserver<Subscription> responseObserver) {
     try {
       validateCreation(request);
-      createSubscription(buildSubscriptionProperty(request));
+      addSubscription(buildSubscriptionProperty(request));
       responseObserver.onNext(request);
       responseObserver.onCompleted();
     } catch (StatusException e) {
@@ -144,7 +144,7 @@ class SubscriberImpl extends SubscriberImplBase {
     }
   }
 
-  public void createSubscription(SubscriptionProperties subscriptionProperties) {
+  void addSubscription(SubscriptionProperties subscriptionProperties) {
     Configuration.getApplicationProperties()
         .getKafkaProperties()
         .getConsumerProperties()

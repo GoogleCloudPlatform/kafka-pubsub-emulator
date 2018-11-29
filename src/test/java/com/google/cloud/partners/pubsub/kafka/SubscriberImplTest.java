@@ -82,11 +82,9 @@ import org.apache.kafka.clients.consumer.MockConsumer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.FixMethodOrder;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.junit.runners.MethodSorters;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
@@ -261,7 +259,7 @@ public class SubscriberImplTest {
       subscriptionToDelete.setTopic(TOPIC_TO_DELETE1);
       subscriptionToDelete.setName(SUBSCRIPTION_TO_DELETE1);
       subscriptionToDelete.setAckDeadlineSeconds(10);
-      subscriber.createSubscription(subscriptionToDelete);
+      subscriber.addSubscription(subscriptionToDelete);
 
       DeleteSubscriptionRequest request =
           DeleteSubscriptionRequest.newBuilder().setSubscription(SUBSCRIPTION_TO_DELETE1).build();
@@ -304,7 +302,7 @@ public class SubscriberImplTest {
       subscriptionToDelete.setTopic(TOPIC_TO_DELETE2);
       subscriptionToDelete.setName(SUBSCRIPTION_TO_DELETE2_FORMATTED);
       subscriptionToDelete.setAckDeadlineSeconds(10);
-      subscriber.createSubscription(subscriptionToDelete);
+      subscriber.addSubscription(subscriptionToDelete);
 
       DeleteSubscriptionRequest request =
           DeleteSubscriptionRequest.newBuilder()
