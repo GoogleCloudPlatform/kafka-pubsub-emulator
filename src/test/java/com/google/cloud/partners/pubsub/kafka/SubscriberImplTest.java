@@ -16,9 +16,21 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.NEW_SUBSCRIPTION1;
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.NEW_SUBSCRIPTION2;
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.NEW_SUBSCRIPTION2_FORMATTED;
 import static com.google.cloud.partners.pubsub.kafka.TestHelpers.PROJECT;
 import static com.google.cloud.partners.pubsub.kafka.TestHelpers.SUBSCRIPTION1;
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.SUBSCRIPTION2;
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.SUBSCRIPTION3;
 import static com.google.cloud.partners.pubsub.kafka.TestHelpers.SUBSCRIPTION_NOT_EXISTS;
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.SUBSCRIPTION_TO_DELETE1;
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.SUBSCRIPTION_TO_DELETE2_FORMATTED;
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.TOPIC1;
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.TOPIC2;
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.TOPIC2_FORMATTED;
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.TOPIC_TO_DELETE1;
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.TOPIC_TO_DELETE2;
 import static java.lang.String.format;
 import static junit.framework.TestCase.fail;
 import static org.junit.Assert.assertEquals;
@@ -32,6 +44,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
+import com.google.common.collect.Lists;
 import com.google.protobuf.Empty;
 import com.google.protobuf.Timestamp;
 import com.google.pubsub.v1.AcknowledgeRequest;
@@ -80,7 +93,6 @@ public class SubscriberImplTest {
 
   public static final String PROJECT_SUBSCRIPTION_FORMAT = "projects/%s/subscriptions/%s";
   private static final String MESSAGE_CONTENT_REGEX = "message-[0-9]{4}";
-  private static final String NEW_SUBSCRIPTION = "new-subscription";
   @Rule public final GrpcServerRule grpcServerRule = new GrpcServerRule();
   private SubscriberGrpc.SubscriberBlockingStub blockingStub;
   private MockKafkaClientFactoryImpl kafkaClientFactory;
@@ -92,33 +104,21 @@ public class SubscriberImplTest {
   public static void setUpBeforeClass() {
 
     TestHelpers.useTestApplicationConfig(1, 1);
-
-    SubscriptionProperties subscriptionProperties = new SubscriptionProperties();
-    subscriptionProperties.setTopic(TestHelpers.TOPIC_TO_DELETE);
-    subscriptionProperties.setName(TestHelpers.SUBSCRIPTION_TO_DELETE);
-    subscriptionProperties.setAckDeadlineSeconds(10);
-
-    Configuration.getApplicationProperties()
-        .getKafkaProperties()
-        .getConsumerProperties()
-        .getSubscriptions()
-        .add(subscriptionProperties);
   }
 
   @Before
   public void setUp() {
     TestHelpers.setupRequestBindConfiguration();
     kafkaClientFactory = new MockKafkaClientFactoryImpl();
+    kafkaClientFactory.configureConsumersForSubscription(TOPIC1, SUBSCRIPTION1, 3, 0L, 0L);
+    kafkaClientFactory.configureConsumersForSubscription(TOPIC1, SUBSCRIPTION2, 3, 0L, 0L);
+    kafkaClientFactory.configureConsumersForSubscription(TOPIC2, SUBSCRIPTION3, 3, 0L, 0L);
+    kafkaClientFactory.configureConsumersForSubscription(TOPIC1, NEW_SUBSCRIPTION1, 3, 0L, 0L);
+    kafkaClientFactory.configureConsumersForSubscription(TOPIC2, NEW_SUBSCRIPTION2, 3, 0L, 0L);
     kafkaClientFactory.configureConsumersForSubscription(
-        TestHelpers.TOPIC1, SUBSCRIPTION1, 3, 0L, 0L);
+        TOPIC_TO_DELETE1, SUBSCRIPTION_TO_DELETE1, 3, 0L, 0L);
     kafkaClientFactory.configureConsumersForSubscription(
-        TestHelpers.TOPIC1, TestHelpers.SUBSCRIPTION2, 3, 0L, 0L);
-    kafkaClientFactory.configureConsumersForSubscription(
-        TestHelpers.TOPIC2, TestHelpers.SUBSCRIPTION3, 3, 0L, 0L);
-    kafkaClientFactory.configureConsumersForSubscription(
-        TestHelpers.TOPIC_TO_DELETE, TestHelpers.SUBSCRIPTION_TO_DELETE, 3, 0L, 0L);
-    kafkaClientFactory.configureConsumersForSubscription(
-        TestHelpers.TOPIC1, NEW_SUBSCRIPTION, 3, 0L, 0L);
+        TOPIC_TO_DELETE2, SUBSCRIPTION_TO_DELETE2_FORMATTED, 3, 0L, 0L);
 
     subscriptionManageFactory = new SpyingSubscriptionManageFactoryImpl();
     subscriber =
@@ -129,11 +129,13 @@ public class SubscriberImplTest {
 
   @After
   public void tearDown() {
-    Configuration.getApplicationProperties()
-        .getKafkaProperties()
-        .getConsumerProperties()
-        .getSubscriptions()
-        .removeIf(s -> NEW_SUBSCRIPTION.equals(s.getName()));
+    List<String> toRemove = Lists.newArrayList(NEW_SUBSCRIPTION1, NEW_SUBSCRIPTION2);
+    List<SubscriptionProperties> l =
+        Configuration.getApplicationProperties()
+            .getKafkaProperties()
+            .getConsumerProperties()
+            .getSubscriptions();
+    l.removeIf(s -> toRemove.contains(s.getName()));
 
     TestHelpers.resetRequestBindConfiguration();
   }
@@ -145,10 +147,10 @@ public class SubscriberImplTest {
         .getConsumersForSubscription(SUBSCRIPTION1)
         .forEach(c -> assertTrue(c.closed()));
     kafkaClientFactory
-        .getConsumersForSubscription(TestHelpers.SUBSCRIPTION2)
+        .getConsumersForSubscription(SUBSCRIPTION2)
         .forEach(c -> assertTrue(c.closed()));
     kafkaClientFactory
-        .getConsumersForSubscription(TestHelpers.SUBSCRIPTION3)
+        .getConsumersForSubscription(SUBSCRIPTION3)
         .forEach(c -> assertTrue(c.closed()));
   }
 
@@ -176,7 +178,7 @@ public class SubscriberImplTest {
       Subscription request =
           Subscription.newBuilder()
               .setName(SUBSCRIPTION1)
-              .setTopic(TestHelpers.TOPIC1)
+              .setTopic(TOPIC1)
               .setAckDeadlineSeconds(10)
               .build();
       blockingStub.createSubscription(request);
@@ -189,14 +191,14 @@ public class SubscriberImplTest {
   }
 
   @Test
-  public void createSubscription() {
+  public void createSubscriptionFormatted() {
     try {
       int ack = 10;
 
       Subscription request =
           Subscription.newBuilder()
-              .setName(NEW_SUBSCRIPTION)
-              .setTopic(TestHelpers.TOPIC1)
+              .setName(NEW_SUBSCRIPTION2_FORMATTED)
+              .setTopic(TOPIC2_FORMATTED)
               .setAckDeadlineSeconds(ack)
               .build();
       blockingStub.createSubscription(request);
@@ -207,11 +209,42 @@ public class SubscriberImplTest {
               .getConsumerProperties()
               .getSubscriptions()
               .stream()
-              .filter(s -> s.getName().equals(NEW_SUBSCRIPTION))
+              .filter(s -> s.getName().equals(NEW_SUBSCRIPTION2))
               .findFirst()
               .orElseThrow(() -> new Exception("Fail get property information."));
 
-      assertEquals(TestHelpers.TOPIC1, subscriptionProperties.getTopic());
+      assertEquals(TOPIC2, subscriptionProperties.getTopic());
+      assertEquals(ack, subscriptionProperties.getAckDeadlineSeconds());
+      verify(statisticsManager).addSubscriberInformation(subscriptionProperties);
+    } catch (Exception e) {
+      fail("Unexpected exception thrown " + e.getMessage());
+    }
+  }
+
+  @Test
+  public void createSubscription() {
+    try {
+      int ack = 10;
+
+      Subscription request =
+          Subscription.newBuilder()
+              .setName(NEW_SUBSCRIPTION1)
+              .setTopic(TOPIC1)
+              .setAckDeadlineSeconds(ack)
+              .build();
+      blockingStub.createSubscription(request);
+
+      SubscriptionProperties subscriptionProperties =
+          Configuration.getApplicationProperties()
+              .getKafkaProperties()
+              .getConsumerProperties()
+              .getSubscriptions()
+              .stream()
+              .filter(s -> s.getName().equals(NEW_SUBSCRIPTION1))
+              .findFirst()
+              .orElseThrow(() -> new Exception("Fail get property information."));
+
+      assertEquals(TOPIC1, subscriptionProperties.getTopic());
       assertEquals(ack, subscriptionProperties.getAckDeadlineSeconds());
       verify(statisticsManager).addSubscriberInformation(subscriptionProperties);
     } catch (Exception e) {
@@ -222,10 +255,14 @@ public class SubscriberImplTest {
   @Test
   public void deleteSubscription() {
     try {
+      SubscriptionProperties subscriptionToDelete = new SubscriptionProperties();
+      subscriptionToDelete.setTopic(TOPIC_TO_DELETE1);
+      subscriptionToDelete.setName(SUBSCRIPTION_TO_DELETE1);
+      subscriptionToDelete.setAckDeadlineSeconds(10);
+      subscriber.addSubscription(subscriptionToDelete);
+
       DeleteSubscriptionRequest request =
-          DeleteSubscriptionRequest.newBuilder()
-              .setSubscription(TestHelpers.SUBSCRIPTION_TO_DELETE)
-              .build();
+          DeleteSubscriptionRequest.newBuilder().setSubscription(SUBSCRIPTION_TO_DELETE1).build();
       blockingStub.deleteSubscription(request);
 
       assertEquals(
@@ -236,11 +273,10 @@ public class SubscriberImplTest {
               .getSubscriptions()
               .stream()
               .filter(
-                  subscriptionProperties ->
-                      subscriptionProperties.equals(TestHelpers.SUBSCRIPTION_TO_DELETE))
+                  subscriptionProperties -> subscriptionProperties.equals(SUBSCRIPTION_TO_DELETE1))
               .count());
 
-      verify(statisticsManager).removeSubscriberInformation(TestHelpers.TOPIC_TO_DELETE);
+      verify(statisticsManager).removeSubscriberInformation(TOPIC_TO_DELETE1);
     } catch (StatusRuntimeException e) {
       fail("Unexpected exception thrown " + e.getMessage());
     }
@@ -260,12 +296,45 @@ public class SubscriberImplTest {
   }
 
   @Test
+  public void deleteSubscriptionFormatted() {
+    try {
+      SubscriptionProperties subscriptionToDelete = new SubscriptionProperties();
+      subscriptionToDelete.setTopic(TOPIC_TO_DELETE2);
+      subscriptionToDelete.setName(SUBSCRIPTION_TO_DELETE2_FORMATTED);
+      subscriptionToDelete.setAckDeadlineSeconds(10);
+      subscriber.addSubscription(subscriptionToDelete);
+
+      DeleteSubscriptionRequest request =
+          DeleteSubscriptionRequest.newBuilder()
+              .setSubscription(SUBSCRIPTION_TO_DELETE2_FORMATTED)
+              .build();
+      blockingStub.deleteSubscription(request);
+
+      assertEquals(
+          0,
+          Configuration.getApplicationProperties()
+              .getKafkaProperties()
+              .getConsumerProperties()
+              .getSubscriptions()
+              .stream()
+              .filter(
+                  subscriptionProperties ->
+                      subscriptionProperties.equals(SUBSCRIPTION_TO_DELETE2_FORMATTED))
+              .count());
+
+      verify(statisticsManager).removeSubscriberInformation(TOPIC_TO_DELETE2);
+    } catch (StatusRuntimeException e) {
+      fail("Unexpected exception thrown " + e.getMessage());
+    }
+  }
+
+  @Test
   public void getSubscriptionExists() {
     GetSubscriptionRequest request =
         GetSubscriptionRequest.newBuilder().setSubscription(SUBSCRIPTION1).build();
     Subscription response = blockingStub.getSubscription(request);
     assertEquals(SUBSCRIPTION1, response.getName());
-    assertEquals(TestHelpers.TOPIC1, response.getTopic());
+    assertEquals(TOPIC1, response.getTopic());
     assertEquals(10, response.getAckDeadlineSeconds());
   }
 
@@ -289,15 +358,15 @@ public class SubscriberImplTest {
     ListSubscriptionsResponse response = blockingStub.listSubscriptions(request);
     assertEquals(3, response.getSubscriptionsCount());
     assertEquals(SUBSCRIPTION1, response.getSubscriptions(0).getName());
-    assertEquals(TestHelpers.TOPIC1, response.getSubscriptions(0).getTopic());
+    assertEquals(TOPIC1, response.getSubscriptions(0).getTopic());
     assertEquals(10, response.getSubscriptions(0).getAckDeadlineSeconds());
 
-    assertEquals(TestHelpers.SUBSCRIPTION3, response.getSubscriptions(1).getName());
-    assertEquals(TestHelpers.TOPIC2, response.getSubscriptions(1).getTopic());
+    assertEquals(SUBSCRIPTION3, response.getSubscriptions(1).getName());
+    assertEquals(TOPIC2, response.getSubscriptions(1).getTopic());
     assertEquals(60, response.getSubscriptions(1).getAckDeadlineSeconds());
 
-    assertEquals(TestHelpers.SUBSCRIPTION2, response.getSubscriptions(2).getName());
-    assertEquals(TestHelpers.TOPIC1, response.getSubscriptions(2).getTopic());
+    assertEquals(SUBSCRIPTION2, response.getSubscriptions(2).getName());
+    assertEquals(TOPIC1, response.getSubscriptions(2).getTopic());
     assertEquals(10, response.getSubscriptions(2).getAckDeadlineSeconds());
 
     assertTrue(response.getNextPageToken().isEmpty());
@@ -312,7 +381,7 @@ public class SubscriberImplTest {
 
     assertEquals(1, response.getSubscriptionsCount());
     assertEquals(SUBSCRIPTION1, response.getSubscriptions(0).getName());
-    assertEquals(TestHelpers.TOPIC1, response.getSubscriptions(0).getTopic());
+    assertEquals(TOPIC1, response.getSubscriptions(0).getTopic());
     assertEquals(10, response.getSubscriptions(0).getAckDeadlineSeconds());
     assertFalse(response.getNextPageToken().isEmpty());
 
@@ -324,8 +393,8 @@ public class SubscriberImplTest {
                 .build());
 
     assertEquals(1, responseForSecondPage.getSubscriptionsCount());
-    assertEquals(TestHelpers.SUBSCRIPTION3, responseForSecondPage.getSubscriptions(0).getName());
-    assertEquals(TestHelpers.TOPIC2, responseForSecondPage.getSubscriptions(0).getTopic());
+    assertEquals(SUBSCRIPTION3, responseForSecondPage.getSubscriptions(0).getName());
+    assertEquals(TOPIC2, responseForSecondPage.getSubscriptions(0).getTopic());
     assertEquals(60, responseForSecondPage.getSubscriptions(0).getAckDeadlineSeconds());
     assertFalse(responseForSecondPage.getNextPageToken().isEmpty());
 
@@ -336,16 +405,10 @@ public class SubscriberImplTest {
                 .setPageToken(responseForSecondPage.getNextPageToken())
                 .build());
 
-    assertEquals(2, responseForThirdPage.getSubscriptionsCount());
-    assertEquals(TestHelpers.SUBSCRIPTION2, responseForThirdPage.getSubscriptions(0).getName());
-    assertEquals(TestHelpers.TOPIC1, responseForThirdPage.getSubscriptions(0).getTopic());
+    assertEquals(1, responseForThirdPage.getSubscriptionsCount());
+    assertEquals(SUBSCRIPTION2, responseForThirdPage.getSubscriptions(0).getName());
+    assertEquals(TOPIC1, responseForThirdPage.getSubscriptions(0).getTopic());
     assertEquals(10, responseForThirdPage.getSubscriptions(0).getAckDeadlineSeconds());
-
-    assertEquals(
-        TestHelpers.SUBSCRIPTION_TO_DELETE, responseForThirdPage.getSubscriptions(1).getName());
-    assertEquals(TestHelpers.TOPIC_TO_DELETE, responseForThirdPage.getSubscriptions(1).getTopic());
-    assertEquals(10, responseForThirdPage.getSubscriptions(1).getAckDeadlineSeconds());
-    assertTrue(responseForThirdPage.getNextPageToken().isEmpty());
   }
 
   @Test
@@ -379,7 +442,7 @@ public class SubscriberImplTest {
     int recordsPerPartition = 2;
     MockConsumer<String, ByteBuffer> mockConsumer =
         kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION1).get(0);
-    TestHelpers.generateConsumerRecords(TestHelpers.TOPIC1, partitions, recordsPerPartition, null)
+    TestHelpers.generateConsumerRecords(TOPIC1, partitions, recordsPerPartition, null)
         .forEach(mockConsumer::addRecord);
 
     PullRequest request =
@@ -430,7 +493,7 @@ public class SubscriberImplTest {
     int recordsPerPartition = 2;
     MockConsumer<String, ByteBuffer> mockConsumer =
         kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION1).get(0);
-    TestHelpers.generateConsumerRecords(TestHelpers.TOPIC1, partitions, recordsPerPartition, null)
+    TestHelpers.generateConsumerRecords(TOPIC1, partitions, recordsPerPartition, null)
         .forEach(mockConsumer::addRecord);
 
     PullRequest request =
@@ -503,7 +566,7 @@ public class SubscriberImplTest {
     int concurrentClients = 3;
     MockConsumer<String, ByteBuffer> mockConsumer =
         kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION1).get(0);
-    TestHelpers.generateConsumerRecords(TestHelpers.TOPIC1, partitions, recordsPerPartition, null)
+    TestHelpers.generateConsumerRecords(TOPIC1, partitions, recordsPerPartition, null)
         .forEach(mockConsumer::addRecord);
 
     CountDownLatch countDownLatch = new CountDownLatch(concurrentClients);
@@ -691,7 +754,7 @@ public class SubscriberImplTest {
     int recordsPerPartition = 2;
     MockConsumer<String, ByteBuffer> mockConsumer =
         kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION1).get(0);
-    TestHelpers.generateConsumerRecords(TestHelpers.TOPIC1, partitions, recordsPerPartition, null)
+    TestHelpers.generateConsumerRecords(TOPIC1, partitions, recordsPerPartition, null)
         .forEach(mockConsumer::addRecord);
 
     CompletableFuture<StreamingPullResponse> streamingFuture = new CompletableFuture<>();
@@ -734,7 +797,7 @@ public class SubscriberImplTest {
     int recordsPerPartition = 2;
     MockConsumer<String, ByteBuffer> mockConsumer =
         kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION1).get(0);
-    TestHelpers.generateConsumerRecords(TestHelpers.TOPIC1, partitions, recordsPerPartition, null)
+    TestHelpers.generateConsumerRecords(TOPIC1, partitions, recordsPerPartition, null)
         .forEach(mockConsumer::addRecord);
 
     CompletableFuture<StreamingPullResponse> streamingFuture = new CompletableFuture<>();
@@ -806,7 +869,7 @@ public class SubscriberImplTest {
     int recordsPerPartition = 2;
     MockConsumer<String, ByteBuffer> mockConsumer =
         kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION1).get(0);
-    TestHelpers.generateConsumerRecords(TestHelpers.TOPIC1, partitions, recordsPerPartition, null)
+    TestHelpers.generateConsumerRecords(TOPIC1, partitions, recordsPerPartition, null)
         .forEach(mockConsumer::addRecord);
 
     CompletableFuture<StreamingPullResponse> streamingFuture = new CompletableFuture<>();
@@ -878,7 +941,7 @@ public class SubscriberImplTest {
     int recordsPerPartition = 2;
     MockConsumer<String, ByteBuffer> mockConsumer =
         kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION1).get(0);
-    TestHelpers.generateConsumerRecords(TestHelpers.TOPIC1, partitions, recordsPerPartition, null)
+    TestHelpers.generateConsumerRecords(TOPIC1, partitions, recordsPerPartition, null)
         .forEach(mockConsumer::addRecord);
 
     CompletableFuture<StreamingPullResponse> streamingFuture = new CompletableFuture<>();
@@ -932,7 +995,7 @@ public class SubscriberImplTest {
     int recordsPerPartition = 2;
     MockConsumer<String, ByteBuffer> mockConsumer =
         kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION1).get(0);
-    TestHelpers.generateConsumerRecords(TestHelpers.TOPIC1, partitions, recordsPerPartition, null)
+    TestHelpers.generateConsumerRecords(TOPIC1, partitions, recordsPerPartition, null)
         .forEach(mockConsumer::addRecord);
 
     CompletableFuture<StreamingPullResponse> streamingFuture = new CompletableFuture<>();
