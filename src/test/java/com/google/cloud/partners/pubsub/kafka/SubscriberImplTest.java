@@ -91,7 +91,6 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
-@FixMethodOrder(MethodSorters.NAME_ASCENDING) // FIXME: Delete must happen before List
 public class SubscriberImplTest {
 
   public static final String PROJECT_SUBSCRIPTION_FORMAT = "projects/%s/subscriptions/%s";
