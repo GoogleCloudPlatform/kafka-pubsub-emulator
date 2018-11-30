@@ -16,15 +16,7 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
-import static com.google.cloud.partners.pubsub.kafka.TestHelpers.PROJECT;
-import static com.google.cloud.partners.pubsub.kafka.TestHelpers.TOPIC1;
-import static com.google.cloud.partners.pubsub.kafka.TestHelpers.TOPIC2;
-import static com.google.cloud.partners.pubsub.kafka.TestHelpers.TOPIC_NOT_EXISTS;
-import static com.google.cloud.partners.pubsub.kafka.TestHelpers.generatePubsubMessages;
-import static com.google.cloud.partners.pubsub.kafka.TestHelpers.generatePubsubMessagesWithHeader;
-import static com.google.cloud.partners.pubsub.kafka.TestHelpers.resetRequestBindConfiguration;
-import static com.google.cloud.partners.pubsub.kafka.TestHelpers.setupRequestBindConfiguration;
-import static com.google.cloud.partners.pubsub.kafka.TestHelpers.useTestApplicationConfig;
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -39,6 +31,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 
+import com.google.common.collect.Lists;
 import com.google.protobuf.ByteString;
 import com.google.pubsub.v1.DeleteTopicRequest;
 import com.google.pubsub.v1.GetTopicRequest;
@@ -101,6 +94,13 @@ public class PublisherImplTest {
 
   @After
   public void tearDown() {
+    List<String> toRemove = Lists.newArrayList(NEW_TOPIC1);
+    Configuration.getApplicationProperties()
+        .getKafkaProperties()
+        .getProducerProperties()
+        .getTopics()
+        .removeIf(t -> toRemove.contains(t));
+
     resetRequestBindConfiguration();
   }
 
@@ -113,11 +113,53 @@ public class PublisherImplTest {
   @Test
   public void createTopic() {
     try {
-      Topic request = Topic.newBuilder().setName(TOPIC1).build();
+      Topic request = Topic.newBuilder().setName(NEW_TOPIC1).build();
+
       blockingStub.createTopic(request);
-      fail("Topic creation should be unavailable");
+
+      Configuration.getApplicationProperties()
+          .getKafkaProperties()
+          .getProducerProperties()
+          .getTopics()
+          .stream()
+          .filter(t -> t == NEW_TOPIC1)
+          .findFirst()
+          .orElseThrow(() -> new Exception("Failed to create topic"));
+    } catch (Exception e) {
+      fail("Unexpected exception thrown " + e.getMessage());
+    }
+  }
+
+  @Test
+  public void createTopicFormatted() {
+    try {
+      Topic request = Topic.newBuilder().setName(NEW_TOPIC1_FORMATTED).build();
+
+      blockingStub.createTopic(request);
+
+      Configuration.getApplicationProperties()
+          .getKafkaProperties()
+          .getProducerProperties()
+          .getTopics()
+          .stream()
+          .filter(t -> t == NEW_TOPIC1)
+          .findFirst()
+          .orElseThrow(() -> new Exception("Failed to create topic"));
+    } catch (Exception e) {
+      fail("Unexpected exception thrown " + e.getMessage());
+    }
+  }
+
+  @Test
+  public void createTopicWhenTopicAlreadyCreated() {
+    try {
+      Topic request = Topic.newBuilder().setName(TOPIC1).build();
+
+      blockingStub.createTopic(request);
+
+      fail("Topic creation should be unavailable.");
     } catch (StatusRuntimeException e) {
-      assertEquals(Status.UNAVAILABLE.getCode(), e.getStatus().getCode());
+      assertEquals(Status.ALREADY_EXISTS.getCode(), e.getStatus().getCode());
     } catch (Exception e) {
       fail("Unexpected exception thrown " + e.getMessage());
     }
@@ -130,7 +172,7 @@ public class PublisherImplTest {
       blockingStub.deleteTopic(request);
       fail("Topic deletion should be unavailable");
     } catch (StatusRuntimeException e) {
-      assertEquals(Status.UNAVAILABLE.getCode(), e.getStatus().getCode());
+      assertEquals(Status.UNIMPLEMENTED.getCode(), e.getStatus().getCode());
     } catch (Exception e) {
       fail("Unexpected exception thrown " + e.getMessage());
     }

@@ -45,6 +45,8 @@ public class TestHelpers {
   public static final String NEW_SUBSCRIPTION2 = "new-subscription2";
   public static final String NEW_SUBSCRIPTION2_FORMATTED =
       "projects/cpe-ti/subscriptions/new-subscription2";
+  public static final String NEW_TOPIC1 = "new-topic";
+  public static final String NEW_TOPIC1_FORMATTED = "projects/cpe-ti/topics/new-topic";
   public static final String SUBSCRIPTION_NOT_EXISTS = "non-existent-subscription";
   public static final String SUBSCRIPTION_TO_DELETE1 = "subscription-to-delete-1";
   public static final String SUBSCRIPTION_TO_DELETE2 = "subscription-to-delete-2";
@@ -136,6 +138,7 @@ public class TestHelpers {
         newArrayList(
             givenPubSubBindProperty(SUBSCRIPTION1, TOPIC2),
             givenPubSubBindProperty(NEW_SUBSCRIPTION2, TOPIC2),
+            givenPubSubBindProperty("", NEW_TOPIC1),
             givenPubSubBindProperty(SUBSCRIPTION_TO_DELETE2_FORMATTED, TOPIC_TO_DELETE2)));
     Configuration.getApplicationProperties().setPubSubProperties(pubSubProperties);
   }
