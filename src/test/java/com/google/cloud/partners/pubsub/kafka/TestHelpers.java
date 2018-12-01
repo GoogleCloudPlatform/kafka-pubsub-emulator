@@ -56,6 +56,7 @@ public class TestHelpers {
   public static final String TOPIC2 = "test-topic-2";
   public static final String TOPIC2_FORMATTED = "projects/cpe-ti/topics/test-topic-2";
   public static final String TOPIC_TO_DELETE1 = "topic-to-delete1";
+  public static final String TOPIC_TO_DELETE1_FORMATTED = "projects/cpe-ti/topics/topic-to-delete1";
   public static final String TOPIC_TO_DELETE2 = "topic-to-delete2";
   public static final String TOPIC_NOT_EXISTS = "non-existent-topic";
   private static final String CONFIGURATION_UNIT_TEST =
@@ -139,6 +140,7 @@ public class TestHelpers {
             givenPubSubBindProperty(SUBSCRIPTION1, TOPIC2),
             givenPubSubBindProperty(NEW_SUBSCRIPTION2, TOPIC2),
             givenPubSubBindProperty("", NEW_TOPIC1),
+            givenPubSubBindProperty("", TOPIC_TO_DELETE1),
             givenPubSubBindProperty(SUBSCRIPTION_TO_DELETE2_FORMATTED, TOPIC_TO_DELETE2)));
     Configuration.getApplicationProperties().setPubSubProperties(pubSubProperties);
   }

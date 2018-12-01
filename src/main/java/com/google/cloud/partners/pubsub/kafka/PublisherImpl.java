@@ -109,7 +109,6 @@ class PublisherImpl extends PublisherImplBase {
     LOGGER.info("Closed " + kafkaProducers.size() + " KafkaProducers");
   }
 
-  // Create, delete methods are not available
   @Override
   public void createTopic(Topic request, StreamObserver<Topic> responseObserver) {
     try {
@@ -120,8 +119,7 @@ class PublisherImpl extends PublisherImplBase {
             .withDescription("Topic already exists: " + topicName)
             .asException();
 
-      producerProperties.getTopics().add(topicName);
-      topicMap.put(topicName, Topic.newBuilder().setName(topicName).build());
+      addTopic(topicName);
 
       responseObserver.onNext(request);
       responseObserver.onCompleted();
@@ -130,11 +128,37 @@ class PublisherImpl extends PublisherImplBase {
     }
   }
 
+  void addTopic(String topicName) {
+    producerProperties.getTopics().add(topicName);
+    topicMap.put(topicName, Topic.newBuilder().setName(topicName).build());
+  }
+
   @Override
   public void deleteTopic(DeleteTopicRequest request, StreamObserver<Empty> responseObserver) {
-    LOGGER.warning("Topic deletion is not supported!");
-    responseObserver.onError(
-        Status.UNIMPLEMENTED.withDescription("Topic deletion is not supported").asException());
+    try {
+      String topicName = getLastNodeInTopic(request.getTopic());
+
+      if (!producerProperties.getTopics().contains(topicName))
+        throw Status.NOT_FOUND.withDescription("Topic not found: " + topicName).asException();
+
+      removeTopic(topicName);
+
+      responseObserver.onNext(Empty.getDefaultInstance());
+      responseObserver.onCompleted();
+    } catch (StatusException e) {
+      responseObserver.onError(e);
+    }
+  }
+
+  private void removeTopic(String topicName) {
+    producerProperties.getTopics().removeIf(t -> t.equals(topicName));
+    // http://googleapis.github.io/googleapis/java/grpc-google-cloud-pubsub-v1/0.1.5/apidocs/com/google/pubsub/v1/PublisherGrpc.PublisherImplBase.html
+    consumerProperties
+        .getSubscriptions()
+        .stream()
+        .filter(s -> s.getTopic().equals(topicName))
+        .forEach(SubscriptionProperties::setDeletedTopic);
+    topicMap.remove(topicName);
   }
 
   @Override
@@ -266,15 +290,15 @@ class PublisherImpl extends PublisherImplBase {
   public void listTopicSubscriptions(
       ListTopicSubscriptionsRequest request,
       StreamObserver<ListTopicSubscriptionsResponse> responseObserver) {
-    List<String> topics =
-        consumerProperties
-            .getSubscriptions()
+    String topicName = getLastNodeInTopic(request.getTopic());
+    List<String> subscriptions =
+        getTopicSubscriptions(topicName)
             .stream()
-            .filter(s -> s.getTopic().equals(request.getTopic()))
             .map(SubscriptionProperties::getName)
             .collect(Collectors.toList());
 
-    PaginationManager<String> paginationManager = new PaginationManager<>(topics, String::toString);
+    PaginationManager<String> paginationManager =
+        new PaginationManager<>(subscriptions, String::toString);
 
     ListTopicSubscriptionsResponse response =
         ListTopicSubscriptionsResponse.newBuilder()
@@ -284,5 +308,13 @@ class PublisherImpl extends PublisherImplBase {
             .build();
     responseObserver.onNext(response);
     responseObserver.onCompleted();
+  }
+
+  public List<SubscriptionProperties> getTopicSubscriptions(String topicName) {
+    return consumerProperties
+        .getSubscriptions()
+        .stream()
+        .filter(s -> s.getTopic().equals(topicName))
+        .collect(Collectors.toList());
   }
 }
