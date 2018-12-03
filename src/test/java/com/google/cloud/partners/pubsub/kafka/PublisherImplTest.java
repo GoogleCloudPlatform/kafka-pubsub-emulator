@@ -16,29 +16,16 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
-import static com.google.cloud.partners.pubsub.kafka.TestHelpers.PROJECT;
-import static com.google.cloud.partners.pubsub.kafka.TestHelpers.TOPIC1;
-import static com.google.cloud.partners.pubsub.kafka.TestHelpers.TOPIC2;
-import static com.google.cloud.partners.pubsub.kafka.TestHelpers.TOPIC_NOT_EXISTS;
-import static com.google.cloud.partners.pubsub.kafka.TestHelpers.generatePubsubMessages;
-import static com.google.cloud.partners.pubsub.kafka.TestHelpers.generatePubsubMessagesWithHeader;
-import static com.google.cloud.partners.pubsub.kafka.TestHelpers.resetRequestBindConfiguration;
-import static com.google.cloud.partners.pubsub.kafka.TestHelpers.setupRequestBindConfiguration;
-import static com.google.cloud.partners.pubsub.kafka.TestHelpers.useTestApplicationConfig;
+import static com.google.cloud.partners.pubsub.kafka.TestHelpers.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.anyLong;
-import static org.mockito.Mockito.anyString;
-import static org.mockito.Mockito.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.*;
 
+import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
+import com.google.common.collect.Lists;
 import com.google.protobuf.ByteString;
 import com.google.pubsub.v1.DeleteTopicRequest;
 import com.google.pubsub.v1.GetTopicRequest;
@@ -57,6 +44,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+
 import org.apache.kafka.clients.producer.MockProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.After;
@@ -101,6 +89,20 @@ public class PublisherImplTest {
 
   @After
   public void tearDown() {
+    List<String> toRemove =
+        Lists.newArrayList(NEW_TOPIC1, TOPIC_TO_DELETE1, SUBSCRIPTION_TO_DELETE1);
+    Configuration.getApplicationProperties()
+        .getKafkaProperties()
+        .getProducerProperties()
+        .getTopics()
+        .removeIf(t -> toRemove.contains(t));
+
+    Configuration.getApplicationProperties()
+        .getKafkaProperties()
+        .getConsumerProperties()
+        .getSubscriptions()
+        .removeIf(s -> toRemove.contains(s.getName()));
+
     resetRequestBindConfiguration();
   }
 
@@ -113,24 +115,173 @@ public class PublisherImplTest {
   @Test
   public void createTopic() {
     try {
-      Topic request = Topic.newBuilder().setName(TOPIC1).build();
+      Topic request = Topic.newBuilder().setName(NEW_TOPIC1).build();
+
       blockingStub.createTopic(request);
-      fail("Topic creation should be unavailable");
-    } catch (StatusRuntimeException e) {
-      assertEquals(Status.UNAVAILABLE.getCode(), e.getStatus().getCode());
+
+      Configuration.getApplicationProperties()
+          .getKafkaProperties()
+          .getProducerProperties()
+          .getTopics()
+          .stream()
+          .filter(t -> t == NEW_TOPIC1)
+          .findFirst()
+          .orElseThrow(() -> new Exception("Failed to create topic"));
     } catch (Exception e) {
       fail("Unexpected exception thrown " + e.getMessage());
     }
   }
 
   @Test
-  public void deleteTopic() {
+  public void createTopicFormatted() {
     try {
-      DeleteTopicRequest request = DeleteTopicRequest.newBuilder().setTopic(TOPIC1).build();
-      blockingStub.deleteTopic(request);
-      fail("Topic deletion should be unavailable");
+      Topic request = Topic.newBuilder().setName(NEW_TOPIC1_FORMATTED).build();
+
+      blockingStub.createTopic(request);
+
+      Configuration.getApplicationProperties()
+          .getKafkaProperties()
+          .getProducerProperties()
+          .getTopics()
+          .stream()
+          .filter(t -> t == NEW_TOPIC1)
+          .findFirst()
+          .orElseThrow(() -> new Exception("Failed to create topic"));
+    } catch (Exception e) {
+      fail("Unexpected exception thrown " + e.getMessage());
+    }
+  }
+
+  @Test
+  public void createTopicWhenTopicAlreadyCreated() {
+    try {
+      Topic request = Topic.newBuilder().setName(TOPIC1).build();
+
+      blockingStub.createTopic(request);
+
+      fail("Topic creation should be unavailable.");
     } catch (StatusRuntimeException e) {
-      assertEquals(Status.UNAVAILABLE.getCode(), e.getStatus().getCode());
+      assertEquals(Status.ALREADY_EXISTS.getCode(), e.getStatus().getCode());
+    } catch (Exception e) {
+      fail("Unexpected exception thrown " + e.getMessage());
+    }
+  }
+
+  @Test
+  public void deleteTopicWhenTopicDoesntExist() {
+    try {
+      DeleteTopicRequest request =
+          DeleteTopicRequest.newBuilder().setTopic(TOPIC_TO_DELETE1).build();
+
+      blockingStub.deleteTopic(request);
+
+      fail("Topic deletion should be unavailable.");
+    } catch (StatusRuntimeException e) {
+      assertEquals(Status.NOT_FOUND.getCode(), e.getStatus().getCode());
+    } catch (Exception e) {
+      fail("Unexpected exception thrown " + e.getMessage());
+    }
+  }
+
+  @Test
+  public void deleteTopicWithNoSubscriptions() {
+    try {
+      publisher.addTopic(TOPIC_TO_DELETE1);
+
+      DeleteTopicRequest request =
+          DeleteTopicRequest.newBuilder().setTopic(TOPIC_TO_DELETE1).build();
+
+      blockingStub.deleteTopic(request);
+
+      assertFalse(
+          Configuration.getApplicationProperties()
+              .getKafkaProperties()
+              .getProducerProperties()
+              .getTopics()
+              .contains(TOPIC_TO_DELETE1));
+
+    } catch (Exception e) {
+      fail("Unexpected exception thrown " + e.getMessage());
+    }
+  }
+
+  @Test
+  public void deleteTopicWithSubscriptions() {
+    try {
+      publisher.addTopic(TOPIC_TO_DELETE1);
+      SubscriptionProperties subscriptionToDelete = new SubscriptionProperties();
+      subscriptionToDelete.setTopic(TOPIC_TO_DELETE1);
+      subscriptionToDelete.setName(SUBSCRIPTION_TO_DELETE1);
+      subscriptionToDelete.setAckDeadlineSeconds(10);
+      Configuration.getApplicationProperties()
+          .getKafkaProperties()
+          .getConsumerProperties()
+          .getSubscriptions()
+          .add(subscriptionToDelete);
+
+      DeleteTopicRequest request =
+          DeleteTopicRequest.newBuilder().setTopic(TOPIC_TO_DELETE1).build();
+
+      blockingStub.deleteTopic(request);
+
+      assertFalse(
+          Configuration.getApplicationProperties()
+              .getKafkaProperties()
+              .getProducerProperties()
+              .getTopics()
+              .contains(TOPIC_TO_DELETE1));
+
+      assertFalse(
+          Configuration.getApplicationProperties()
+              .getKafkaProperties()
+              .getConsumerProperties()
+              .getSubscriptions()
+              .stream()
+              .anyMatch(s -> s.getTopic().equals(TOPIC_TO_DELETE1)));
+
+      assertTrue(subscriptionToDelete.hasDeletedTopic());
+
+    } catch (Exception e) {
+      fail("Unexpected exception thrown " + e.getMessage());
+    }
+  }
+
+  @Test
+  public void deleteTopicWithSubscriptionsFormatted() {
+    try {
+      publisher.addTopic(TOPIC_TO_DELETE1);
+      SubscriptionProperties subscriptionToDelete = new SubscriptionProperties();
+      subscriptionToDelete.setTopic(TOPIC_TO_DELETE1);
+      subscriptionToDelete.setName(SUBSCRIPTION_TO_DELETE1);
+      subscriptionToDelete.setAckDeadlineSeconds(10);
+      Configuration.getApplicationProperties()
+          .getKafkaProperties()
+          .getConsumerProperties()
+          .getSubscriptions()
+          .add(subscriptionToDelete);
+
+      DeleteTopicRequest request =
+          DeleteTopicRequest.newBuilder().setTopic(TOPIC_TO_DELETE1_FORMATTED).build();
+
+      blockingStub.deleteTopic(request);
+
+      assertFalse(
+          Configuration.getApplicationProperties()
+              .getKafkaProperties()
+              .getProducerProperties()
+              .getTopics()
+              .contains(TOPIC_TO_DELETE1));
+
+      assertFalse(
+          Configuration.getApplicationProperties()
+              .getKafkaProperties()
+              .getConsumerProperties()
+              .getSubscriptions()
+              .stream()
+              .anyMatch(s -> s.getTopic().equals(TOPIC_TO_DELETE1)));
+
+      assertTrue(subscriptionToDelete.hasDeletedTopic());
+
     } catch (Exception e) {
       fail("Unexpected exception thrown " + e.getMessage());
     }

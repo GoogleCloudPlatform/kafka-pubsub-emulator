@@ -34,6 +34,7 @@ import com.google.pubsub.v1.PublisherGrpc.PublisherImplBase;
 import com.google.pubsub.v1.PubsubMessage;
 import com.google.pubsub.v1.Topic;
 import io.grpc.Status;
+import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -74,11 +75,13 @@ class PublisherImpl extends PublisherImplBase {
 
   private final ConsumerProperties consumerProperties;
 
+  private final ProducerProperties producerProperties;
+
   private final StatisticsManager statisticsManager;
 
   public PublisherImpl(KafkaClientFactory kafkaClientFactory, StatisticsManager statisticsManager) {
     this.statisticsManager = statisticsManager;
-    ProducerProperties producerProperties =
+    this.producerProperties =
         Configuration.getApplicationProperties().getKafkaProperties().getProducerProperties();
     this.consumerProperties =
         Configuration.getApplicationProperties().getKafkaProperties().getConsumerProperties();
@@ -106,17 +109,56 @@ class PublisherImpl extends PublisherImplBase {
     LOGGER.info("Closed " + kafkaProducers.size() + " KafkaProducers");
   }
 
-  // Create, delete methods are not available
   @Override
   public void createTopic(Topic request, StreamObserver<Topic> responseObserver) {
-    responseObserver.onError(
-        Status.UNAVAILABLE.withDescription("Topic creation is not supported").asException());
+    try {
+      String topicName = getLastNodeInTopic(request.getName());
+
+      if (producerProperties.getTopics().contains(topicName))
+        throw Status.ALREADY_EXISTS
+            .withDescription("Topic already exists: " + topicName)
+            .asException();
+
+      addTopic(topicName);
+
+      responseObserver.onNext(request);
+      responseObserver.onCompleted();
+    } catch (StatusException e) {
+      responseObserver.onError(e);
+    }
+  }
+
+  void addTopic(String topicName) {
+    producerProperties.getTopics().add(topicName);
+    topicMap.put(topicName, Topic.newBuilder().setName(topicName).build());
   }
 
   @Override
   public void deleteTopic(DeleteTopicRequest request, StreamObserver<Empty> responseObserver) {
-    responseObserver.onError(
-        Status.UNAVAILABLE.withDescription("Topic deletion is not supported").asException());
+    try {
+      String topicName = getLastNodeInTopic(request.getTopic());
+
+      if (!producerProperties.getTopics().contains(topicName))
+        throw Status.NOT_FOUND.withDescription("Topic not found: " + topicName).asException();
+
+      removeTopic(topicName);
+
+      responseObserver.onNext(Empty.getDefaultInstance());
+      responseObserver.onCompleted();
+    } catch (StatusException e) {
+      responseObserver.onError(e);
+    }
+  }
+
+  private void removeTopic(String topicName) {
+    producerProperties.getTopics().removeIf(t -> t.equals(topicName));
+    // http://googleapis.github.io/googleapis/java/grpc-google-cloud-pubsub-v1/0.1.5/apidocs/com/google/pubsub/v1/PublisherGrpc.PublisherImplBase.html
+    consumerProperties
+        .getSubscriptions()
+        .stream()
+        .filter(s -> s.getTopic().equals(topicName))
+        .forEach(SubscriptionProperties::setDeletedTopic);
+    topicMap.remove(topicName);
   }
 
   @Override
@@ -248,15 +290,15 @@ class PublisherImpl extends PublisherImplBase {
   public void listTopicSubscriptions(
       ListTopicSubscriptionsRequest request,
       StreamObserver<ListTopicSubscriptionsResponse> responseObserver) {
-    List<String> topics =
-        consumerProperties
-            .getSubscriptions()
+    String topicName = getLastNodeInTopic(request.getTopic());
+    List<String> subscriptions =
+        getTopicSubscriptions(topicName)
             .stream()
-            .filter(s -> s.getTopic().equals(request.getTopic()))
             .map(SubscriptionProperties::getName)
             .collect(Collectors.toList());
 
-    PaginationManager<String> paginationManager = new PaginationManager<>(topics, String::toString);
+    PaginationManager<String> paginationManager =
+        new PaginationManager<>(subscriptions, String::toString);
 
     ListTopicSubscriptionsResponse response =
         ListTopicSubscriptionsResponse.newBuilder()
@@ -266,5 +308,13 @@ class PublisherImpl extends PublisherImplBase {
             .build();
     responseObserver.onNext(response);
     responseObserver.onCompleted();
+  }
+
+  public List<SubscriptionProperties> getTopicSubscriptions(String topicName) {
+    return consumerProperties
+        .getSubscriptions()
+        .stream()
+        .filter(s -> s.getTopic().equals(topicName))
+        .collect(Collectors.toList());
   }
 }

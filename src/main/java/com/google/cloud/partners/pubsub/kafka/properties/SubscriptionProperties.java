@@ -18,6 +18,9 @@ package com.google.cloud.partners.pubsub.kafka.properties;
 
 public class SubscriptionProperties {
 
+  // http://googleapis.github.io/googleapis/java/grpc-google-cloud-pubsub-v1/0.1.5/apidocs/com/google/pubsub/v1/PublisherGrpc.PublisherImplBase.html#deleteTopic-com.google.pubsub.v1.DeleteTopicRequest-io.grpc.stub.StreamObserver-
+  private final String DELETED_TOPIC = "_deleted_topic_";
+
   private String name;
 
   private String topic;
@@ -38,6 +41,14 @@ public class SubscriptionProperties {
 
   public void setTopic(String topic) {
     this.topic = topic;
+  }
+
+  public void setDeletedTopic() {
+    setTopic(DELETED_TOPIC);
+  }
+
+  public boolean hasDeletedTopic() {
+    return topic.equals(DELETED_TOPIC);
   }
 
   public int getAckDeadlineSeconds() {
