@@ -17,25 +17,6 @@ package com.google.cloud.partners.pubsub.emulator;
 
 import static java.lang.String.format;
 
-import java.io.IOException;
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.LongAdder;
-import java.util.logging.LogManager;
-import java.util.logging.Logger;
-import java.util.stream.Collectors;
-
-import org.threeten.bp.Duration;
-
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
@@ -57,6 +38,23 @@ import com.google.protobuf.ByteString;
 import com.google.pubsub.v1.PubsubMessage;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import java.io.IOException;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.LongAdder;
+import java.util.logging.LogManager;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
+import org.threeten.bp.Duration;
 
 /**
  * This integration test is designed to run against the emulator running at localhost:8080 and will
@@ -67,7 +65,7 @@ import io.grpc.ManagedChannelBuilder;
 public class PerformanceBenchmark {
 
   private static final Logger LOGGER = Logger.getLogger(PerformanceBenchmark.class.getName());
-  private static final int MAX_OUTSTANDING_PUBLISH_REQUESTS = 2000;
+  private static final int MAX_OUTSTANDING_PUBLISH_REQUESTS = 1000;
   private static final String MESSAGE_SEQUENCE = "messageSequence";
   private static final String SENT_AT = "sentAt";
 
@@ -121,6 +119,7 @@ public class PerformanceBenchmark {
     ScheduledExecutorService executorService = Executors.newScheduledThreadPool(numPublishers + 1);
     CountDownLatch publisherCountDown = new CountDownLatch(1);
     CountDownLatch subscriberCountDown = new CountDownLatch(1);
+    Semaphore maxOutstandingRequests = new Semaphore(MAX_OUTSTANDING_PUBLISH_REQUESTS);
 
     List<Publisher> publishers = new ArrayList<>();
     List<Subscriber> subscribers = new ArrayList<>();
@@ -150,8 +149,6 @@ public class PerformanceBenchmark {
         publisher ->
             executorService.submit(
                 () -> {
-                  Semaphore maxOutstandingRequests =
-                      new Semaphore(MAX_OUTSTANDING_PUBLISH_REQUESTS);
                   boolean done = false;
                   while (!done) {
                     try {

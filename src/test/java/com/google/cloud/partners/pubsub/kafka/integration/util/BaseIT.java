@@ -44,6 +44,7 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.NettyChannelBuilder;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -151,12 +152,13 @@ public abstract class BaseIT {
     if (USE_SSL) {
       SecurityProperties securityProperties =
           Configuration.getApplicationProperties().getServerProperties().getSecurityProperties();
-      File certificate = new File(securityProperties.getCertChainFile());
       try {
         channel =
             NettyChannelBuilder.forAddress(LOCALHOST, PORT)
                 .maxInboundMessageSize(100000)
-                .sslContext(GrpcSslContexts.forClient().trustManager(certificate).build())
+                .sslContext(GrpcSslContexts.forClient().trustManager(
+                    InsecureTrustManagerFactory.INSTANCE).build())
+                .overrideAuthority(LOCALHOST + ":" + PORT)
                 .build();
       } catch (SSLException e) {
         fail("Unable to create SSL channel " + e.getMessage());
