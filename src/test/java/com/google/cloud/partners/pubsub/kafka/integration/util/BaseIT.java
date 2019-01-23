@@ -156,8 +156,10 @@ public abstract class BaseIT {
         channel =
             NettyChannelBuilder.forAddress(LOCALHOST, PORT)
                 .maxInboundMessageSize(100000)
-                .sslContext(GrpcSslContexts.forClient().trustManager(
-                    InsecureTrustManagerFactory.INSTANCE).build())
+                .sslContext(
+                    GrpcSslContexts.forClient()
+                        .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                        .build())
                 .overrideAuthority(LOCALHOST + ":" + PORT)
                 .build();
       } catch (SSLException e) {
