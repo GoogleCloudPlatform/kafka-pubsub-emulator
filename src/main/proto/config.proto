@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Google LLC
+ * Copyright 2019 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,14 @@ package google.pubsub.kafka.emulator;
 message Topic {
   string name = 1;
   string kafka_topic = 2;
-  repeated string subscriptions = 3;
+  // TODO: Add support for ack_deadline_seconds
+  repeated Subscription subscriptions = 3;
+}
+
+// Pub/Sub Subscription
+message Subscription {
+  string name = 1;
+  int32 ack_deadline_seconds = 2;
 }
 
 // A Pub/Sub Project and its associated Topics

@@ -57,16 +57,14 @@ public class PubsubEmulatorServer {
   private static final int MAX_MESSAGE_SIZE = 1000 * 1000 * 10; // 10MB
 
   @Parameter(
-    names = {"--help"},
-    help = true
-  )
+      names = {"--help"},
+      help = true)
   private boolean help = false;
 
   @Parameter(
-    names = {"--configuration.location"},
-    required = true,
-    description = "Path of the file that contains the application configuration."
-  )
+      names = {"--configuration.location"},
+      required = true,
+      description = "Path of the file that contains the application configuration.")
   private String configurationLocation;
 
   private PublisherImpl publisher;
