@@ -8,17 +8,23 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 
-public class JsonFileConfigurationRepository extends ConfigurationRepository {
+/**
+ * Implementation of {@link ConfigurationRepository} that expects to be provided with a File object
+ * pointing to a JSON-formatted {@link Configuration} protobuf. If the file is writeable, the save
+ * operation will serialize the in-memory state back to the same JSON file.
+ *
+ * <p>TODO: Support proto text format as well
+ */
+public class FileConfigurationRepository extends ConfigurationRepository {
 
   private final File file;
 
-  public JsonFileConfigurationRepository(File file) {
+  private FileConfigurationRepository(Configuration configuration, File file) {
+    super(configuration);
     this.file = file;
-    setConfiguration(load());
   }
 
-  @Override
-  public Configuration load() {
+  public static ConfigurationRepository create(File file) {
     String json;
     try {
       json = String.join("\n", Files.readAllLines(file.toPath(), UTF_8));
@@ -30,7 +36,7 @@ public class JsonFileConfigurationRepository extends ConfigurationRepository {
     try {
       Configuration.Builder builder = Configuration.newBuilder();
       JsonFormat.parser().merge(json, builder);
-      return builder.build();
+      return new FileConfigurationRepository(builder.build(), file);
     } catch (InvalidProtocolBufferException e) {
       throw new IllegalArgumentException(
           "Invalid Configuration read from " + file.getAbsolutePath(), e);
@@ -38,7 +44,7 @@ public class JsonFileConfigurationRepository extends ConfigurationRepository {
   }
 
   @Override
-  public void save() {
+  void save() {
     if (!file.canWrite()) {
       throw new UnsupportedOperationException(
           "Configuration cannot be saved. " + file.getAbsolutePath() + " is not writeable.");
