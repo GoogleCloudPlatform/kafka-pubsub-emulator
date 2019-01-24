@@ -4,7 +4,8 @@ import static com.google.cloud.partners.pubsub.kafka.config.ConfigurationReposit
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.MatcherAssert.assertThat;
 
-import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.ConfigurationException;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.ConfigurationAlreadyExistsException;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.ConfigurationNotFoundException;
 import com.google.pubsub.v1.Subscription;
 import java.io.File;
 import java.io.IOException;
@@ -15,7 +16,7 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 
-public class JsonFileConfigurationRepositoryTest {
+public class FileConfigurationRepositoryTest {
 
   private static final String CONFIG =
       "{\n"
@@ -94,7 +95,7 @@ public class JsonFileConfigurationRepositoryTest {
     File file = temporaryFolder.newFile();
     Files.write(file.toPath(), CONFIG.getBytes(UTF_8));
 
-    ConfigurationRepository configurationRepository = new JsonFileConfigurationRepository(file);
+    ConfigurationRepository configurationRepository = FileConfigurationRepository.create(file);
     assertThat(configurationRepository.getTopics("projects/project-1"), Matchers.hasSize(2));
     assertThat(configurationRepository.getTopics("projects/project-2"), Matchers.hasSize(2));
     assertThat(configurationRepository.getSubscriptions("projects/project-1"), Matchers.hasSize(4));
@@ -106,7 +107,7 @@ public class JsonFileConfigurationRepositoryTest {
     expectedException.expect(IllegalArgumentException.class);
     expectedException.expectMessage("Unable to read Configuration from /tmp/file/doesnotexist.txt");
 
-    new JsonFileConfigurationRepository(new File("/tmp/file/doesnotexist.txt"));
+    FileConfigurationRepository.create(new File("/tmp/file/doesnotexist.txt"));
   }
 
   @Test
@@ -125,7 +126,7 @@ public class JsonFileConfigurationRepositoryTest {
     expectedException.expect(IllegalArgumentException.class);
     expectedException.expectMessage("Invalid Configuration read from " + file.getAbsolutePath());
 
-    new JsonFileConfigurationRepository(file);
+    FileConfigurationRepository.create(file);
   }
 
   @Test
@@ -133,7 +134,7 @@ public class JsonFileConfigurationRepositoryTest {
     File file = temporaryFolder.newFile();
     Files.write(file.toPath(), CONFIG.getBytes(UTF_8));
 
-    ConfigurationRepository configurationRepository = new JsonFileConfigurationRepository(file);
+    ConfigurationRepository configurationRepository = FileConfigurationRepository.create(file);
 
     Files.write(file.toPath(), "".getBytes(UTF_8));
     assertThat(Files.readAllLines(file.toPath(), UTF_8), Matchers.empty());
@@ -144,11 +145,12 @@ public class JsonFileConfigurationRepositoryTest {
   }
 
   @Test
-  public void save_afterChanges() throws IOException, ConfigurationException {
+  public void save_afterChanges()
+      throws IOException, ConfigurationAlreadyExistsException, ConfigurationNotFoundException {
     File file = temporaryFolder.newFile();
     Files.write(file.toPath(), CONFIG.getBytes(UTF_8));
 
-    ConfigurationRepository configurationRepository = new JsonFileConfigurationRepository(file);
+    ConfigurationRepository configurationRepository = FileConfigurationRepository.create(file);
 
     com.google.pubsub.v1.Topic newTopic =
         com.google.pubsub.v1.Topic.newBuilder()
@@ -254,7 +256,7 @@ public class JsonFileConfigurationRepositoryTest {
     Files.write(file.toPath(), CONFIG.getBytes(UTF_8));
     file.setWritable(false);
 
-    ConfigurationRepository configurationRepository = new JsonFileConfigurationRepository(file);
+    ConfigurationRepository configurationRepository = FileConfigurationRepository.create(file);
 
     expectedException.expect(UnsupportedOperationException.class);
     expectedException.expectMessage(file.getAbsolutePath() + " is not writeable.");

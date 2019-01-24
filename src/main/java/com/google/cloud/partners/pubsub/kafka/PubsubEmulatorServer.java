@@ -22,6 +22,8 @@ import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.Parameters;
 import com.google.cloud.partners.pubsub.kafka.common.AdminGrpc;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository;
+import com.google.cloud.partners.pubsub.kafka.config.FileConfigurationRepository;
 import com.google.cloud.partners.pubsub.kafka.properties.ApplicationProperties;
 import com.google.cloud.partners.pubsub.kafka.properties.SecurityProperties;
 import com.google.cloud.partners.pubsub.kafka.properties.ServerProperties;
@@ -67,11 +69,17 @@ public class PubsubEmulatorServer {
       description = "Path of the file that contains the application configuration.")
   private String configurationLocation;
 
-  private PublisherImpl publisher;
+  private final ConfigurationRepository configurationRepository;
+  private PublisherService publisher;
   private SubscriberImpl subscriber;
   private AdminImpl admin;
   private Server server;
   private HealthStatusManager healthStatusManager;
+
+  public PubsubEmulatorServer() {
+    this.configurationRepository =
+        FileConfigurationRepository.create(new File(configurationLocation));
+  }
 
   /**
    * Initialize and start the PubsubEmulatorServer.
@@ -88,6 +96,7 @@ public class PubsubEmulatorServer {
     }
     try {
       Configuration.loadApplicationProperties(pubsubEmulatorServer.configurationLocation);
+
       pubsubEmulatorServer.start();
       pubsubEmulatorServer.blockUntilShutdown();
     } catch (IOException | InterruptedException e) {
@@ -105,7 +114,8 @@ public class PubsubEmulatorServer {
 
     healthStatusManager = new HealthStatusManager();
     admin = new AdminImpl(statisticsManager);
-    publisher = new PublisherImpl(kafkaClientFactory, statisticsManager);
+    publisher =
+        new PublisherService(configurationRepository, kafkaClientFactory, statisticsManager);
     subscriber =
         new SubscriberImpl(kafkaClientFactory, subscriptionManagerFactory, statisticsManager);
     server = initializeServer(applicationProperties.getServerProperties());
