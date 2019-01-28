@@ -82,7 +82,7 @@ public class PublisherServiceTest {
   @Rule public final ExpectedException expectedException = ExpectedException.none();
 
   private PublisherGrpc.PublisherBlockingStub blockingStub;
-  private MockKafkaClientFactoryImpl kafkaClientFactory;
+  private MockKafkaClientFactory kafkaClientFactory;
   private PublisherService publisher;
 
   @Mock private StatisticsManager statisticsManager;
@@ -95,7 +95,7 @@ public class PublisherServiceTest {
   @Before
   public void setUp() {
     setupRequestBindConfiguration();
-    kafkaClientFactory = new MockKafkaClientFactoryImpl();
+    kafkaClientFactory = new MockKafkaClientFactory();
     publisher =
         new PublisherService(
             new FakeConfigurationRepository(), kafkaClientFactory, statisticsManager);
@@ -175,7 +175,6 @@ public class PublisherServiceTest {
         ListTopicsRequest.newBuilder().setProject("projects/project-1").build();
     ListTopicsResponse response = blockingStub.listTopics(request);
 
-    assertThat(response.getTopicsList(), Matchers.hasSize(2));
     assertThat(
         response.getTopicsList(),
         Matchers.contains(

@@ -16,13 +16,13 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
-import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
+import com.google.pubsub.v1.Subscription;
 import java.util.concurrent.ScheduledExecutorService;
 
 interface SubscriptionManagerFactory {
 
   SubscriptionManager create(
-      SubscriptionProperties subscription,
+      Subscription subscription,
       KafkaClientFactory clientFactory,
       ScheduledExecutorService commitExecutor);
 }

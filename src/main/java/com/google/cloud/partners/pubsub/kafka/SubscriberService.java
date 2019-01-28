@@ -16,14 +16,11 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
-import static com.google.cloud.partners.pubsub.kafka.Configuration.getLastNodeInSubscription;
-import static com.google.cloud.partners.pubsub.kafka.Configuration.getLastNodeInTopic;
-import static java.lang.String.format;
 import static java.util.Objects.isNull;
 
-import com.google.cloud.partners.pubsub.kafka.properties.ConsumerProperties;
-import com.google.cloud.partners.pubsub.kafka.properties.KafkaProperties;
-import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.ConfigurationAlreadyExistsException;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.ConfigurationNotFoundException;
 import com.google.protobuf.Empty;
 import com.google.pubsub.v1.AcknowledgeRequest;
 import com.google.pubsub.v1.DeleteSubscriptionRequest;
@@ -31,9 +28,9 @@ import com.google.pubsub.v1.GetSubscriptionRequest;
 import com.google.pubsub.v1.ListSubscriptionsRequest;
 import com.google.pubsub.v1.ListSubscriptionsResponse;
 import com.google.pubsub.v1.ModifyAckDeadlineRequest;
+import com.google.pubsub.v1.PubsubMessage;
 import com.google.pubsub.v1.PullRequest;
 import com.google.pubsub.v1.PullResponse;
-import com.google.pubsub.v1.PushConfig;
 import com.google.pubsub.v1.ReceivedMessage;
 import com.google.pubsub.v1.StreamingPullRequest;
 import com.google.pubsub.v1.StreamingPullResponse;
@@ -45,7 +42,6 @@ import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -64,38 +60,33 @@ import java.util.stream.Collectors;
  * Implementation of <a
  * href="https://cloud.google.com/pubsub/docs/reference/rpc/google.pubsub.v1#subscriber"
  * target="_blank"> Cloud Pub/Sub Publisher API.</a>
- *
- * <p>Builds a {@link SubscriptionManager} object for each Subscription that handles the
- * communication with Kafka to retrieving and acknowledging messages. The {@link
- * ConsumerProperties#getExecutors} setting determines how many consumers are available to poll for
- * each Subscription.
  */
-class SubscriberImpl extends SubscriberImplBase {
+class SubscriberService extends SubscriberImplBase {
 
-  private static final Logger LOGGER = Logger.getLogger(SubscriberImpl.class.getName());
+  private static final Logger LOGGER = Logger.getLogger(SubscriberService.class.getName());
   private static final AtomicInteger STREAMING_PULL_ID = new AtomicInteger();
 
   private final ScheduledExecutorService commitExecutorService;
   private final ExecutorService streamingPullExecutorService;
   private final Map<String, SubscriptionManager> subscriptions;
   private final StatisticsManager statisticsManager;
+  private final ConfigurationRepository configurationRepository;
   private final SubscriptionManagerFactory subscriptionManagerFactory;
   private final KafkaClientFactory kafkaClientFactory;
 
-  public SubscriberImpl(
+  SubscriberService(
+      ConfigurationRepository configurationRepository,
       KafkaClientFactory kafkaClientFactory,
       SubscriptionManagerFactory subscriptionManagerFactory,
       StatisticsManager statisticsManager) {
+    this.configurationRepository = configurationRepository;
     this.statisticsManager = statisticsManager;
     this.subscriptionManagerFactory = subscriptionManagerFactory;
     this.kafkaClientFactory = kafkaClientFactory;
 
-    ConsumerProperties consumerProperties =
-        Configuration.getApplicationProperties().getKafkaProperties().getConsumerProperties();
-
     commitExecutorService =
         Executors.newScheduledThreadPool(
-            consumerProperties.getSubscriptions().size(),
+            configurationRepository.getKafka().getConsumersPerSubscription(),
             Utils.newThreadFactoryWithGroupAndPrefix(
                 "subscriber-commit-threads", "subscriber-committer"));
     streamingPullExecutorService =
@@ -103,15 +94,16 @@ class SubscriberImpl extends SubscriberImplBase {
             Utils.newThreadFactoryWithGroupAndPrefix("streaming-pull-threads", "streaming-puller"));
 
     subscriptions =
-        consumerProperties
-            .getSubscriptions()
+        configurationRepository
+            .getProjects()
             .stream()
+            .flatMap(p -> configurationRepository.getSubscriptions(p).stream())
             .collect(
                 Collectors.toConcurrentMap(
-                    SubscriptionProperties::getName,
-                    sc ->
+                    Subscription::getName,
+                    s ->
                         subscriptionManagerFactory.create(
-                            sc, kafkaClientFactory, commitExecutorService)));
+                            s, kafkaClientFactory, commitExecutorService)));
     LOGGER.info("Created " + subscriptions.size() + " SubscriptionManagers");
   }
 
@@ -125,84 +117,41 @@ class SubscriberImpl extends SubscriberImplBase {
     subscriptions.values().forEach(SubscriptionManager::shutdown);
   }
 
-  /**
-   * TODO: write the new Subscriptions configuration to the log or some temporary space if available
-   * since the new subscription would be gone if the server restarts.
-   *
-   * <p>updateConfigurationFile method are not available
-   */
   @Override
   public void createSubscription(
       Subscription request, StreamObserver<Subscription> responseObserver) {
     try {
-      validateCreation(request);
-      addSubscription(buildSubscriptionProperty(request));
+      configurationRepository.createSubscription(request);
+      subscriptions.put(
+          request.getName(),
+          subscriptionManagerFactory.create(request, kafkaClientFactory, commitExecutorService));
+      // statisticsManager.addSubscriberInformation(subscriptionProperties);
       responseObserver.onNext(request);
       responseObserver.onCompleted();
-    } catch (StatusException e) {
-      responseObserver.onError(e);
+    } catch (ConfigurationAlreadyExistsException e) {
+      responseObserver.onError(Status.ALREADY_EXISTS.withCause(e).asException());
+    } catch (ConfigurationNotFoundException e) {
+      responseObserver.onError(Status.NOT_FOUND.withCause(e).asException());
     }
-  }
-
-  void addSubscription(SubscriptionProperties subscriptionProperties) {
-    Configuration.getApplicationProperties()
-        .getKafkaProperties()
-        .getConsumerProperties()
-        .getSubscriptions()
-        .add(subscriptionProperties);
-    subscriptions.put(
-        subscriptionProperties.getName(),
-        subscriptionManagerFactory.create(
-            subscriptionProperties, kafkaClientFactory, commitExecutorService));
-    statisticsManager.addSubscriberInformation(subscriptionProperties);
   }
 
   @Override
   public void deleteSubscription(
       DeleteSubscriptionRequest request, StreamObserver<Empty> responseObserver) {
     try {
-      String subscription = getLastNodeInSubscription(request.getSubscription());
-      SubscriptionManager subscriptionManager =
-          Optional.ofNullable(subscriptions.get(subscription))
-              .orElseThrow(
-                  () -> Status.NOT_FOUND.withDescription("Subscription not found.").asException());
-      subscriptionManager.shutdown();
-
-      KafkaProperties kafkaProperties =
-          Configuration.getApplicationProperties().getKafkaProperties();
-
-      String topic =
-          kafkaProperties
-              .getConsumerProperties()
-              .getSubscriptions()
-              .stream()
-              .filter(
-                  subscriptionProperties -> subscriptionProperties.getName().equals(subscription))
-              .map(SubscriptionProperties::getTopic)
-              .map(Configuration::getLastNodeInTopic)
-              .findFirst()
-              .orElseThrow(
-                  () -> Status.NOT_FOUND.withDescription("Topic not found.").asException());
-
-      // remove from configuration
-      kafkaProperties
-          .getConsumerProperties()
-          .getSubscriptions()
-          .removeIf(
-              subscriptionProperties -> subscriptionProperties.getName().equals(subscription));
-
-      // verify if not contains anymore topic remove subscriber information from statistics.
-      if (!kafkaProperties.getTopics().contains(topic)) {
-        statisticsManager.removeSubscriberInformation(topic);
-      }
+      configurationRepository.deleteSubscription(request.getSubscription());
+      //      // verify if not contains anymore topic remove subscriber information from statistics.
+      //      if (!kafkaProperties.getTopics().contains(topic)) {
+      //        statisticsManager.removeSubscriberInformation(topic);
+      //      }
 
       // remove from subscriptions map
-      subscriptions.remove(subscription);
-
+      subscriptions.get(request.getSubscription()).shutdown();
+      subscriptions.remove(request.getSubscription());
       responseObserver.onNext(Empty.newBuilder().build());
       responseObserver.onCompleted();
-    } catch (StatusException e) {
-      responseObserver.onError(e);
+    } catch (ConfigurationNotFoundException e) {
+      responseObserver.onError(Status.NOT_FOUND.withCause(e).asException());
     }
   }
 
@@ -210,25 +159,15 @@ class SubscriberImpl extends SubscriberImplBase {
   public void listSubscriptions(
       ListSubscriptionsRequest request,
       StreamObserver<ListSubscriptionsResponse> responseObserver) {
-
-    List<Subscription> subscriptionToList =
-        subscriptions
-            .values()
-            .stream()
-            .sorted(Comparator.comparing(sm -> sm.getSubscriptionProperties().getName()))
-            .map(sm -> subscriptionFromConfig(sm.getSubscriptionProperties()))
-            .collect(Collectors.toList());
-
     PaginationManager<Subscription> paginationManager =
-        new PaginationManager<>(subscriptionToList, Subscription::getName);
-
+        new PaginationManager<>(
+            configurationRepository.getSubscriptions(request.getProject()), Subscription::getName);
     ListSubscriptionsResponse response =
         ListSubscriptionsResponse.newBuilder()
             .addAllSubscriptions(
                 paginationManager.paginate(request.getPageSize(), request.getPageToken()))
             .setNextPageToken(paginationManager.getNextToken(Subscription::getName))
             .build();
-
     responseObserver.onNext(response);
     responseObserver.onCompleted();
   }
@@ -236,22 +175,21 @@ class SubscriberImpl extends SubscriberImplBase {
   @Override
   public void getSubscription(
       GetSubscriptionRequest request, StreamObserver<Subscription> responseObserver) {
-    String subscription = getLastNodeInSubscription(request.getSubscription());
-    if (!subscriptions.containsKey(subscription)) {
+    Optional<Subscription> subscription =
+        configurationRepository.getSubscriptionByName(request.getSubscription());
+    if (!subscription.isPresent()) {
       String message = request.getSubscription() + " is not a valid Subscription";
       LOGGER.warning(message);
       responseObserver.onError(Status.NOT_FOUND.withDescription(message).asException());
     } else {
-      responseObserver.onNext(
-          subscriptionFromConfig(subscriptions.get(subscription).getSubscriptionProperties()));
+      responseObserver.onNext(subscription.get());
       responseObserver.onCompleted();
     }
   }
 
   @Override
   public void pull(PullRequest request, StreamObserver<PullResponse> responseObserver) {
-    String subscription = getLastNodeInSubscription(request.getSubscription());
-    SubscriptionManager subscriptionManager = subscriptions.get(subscription);
+    SubscriptionManager subscriptionManager = subscriptions.get(request.getSubscription());
     if (subscriptionManager == null) {
       String message = request.getSubscription() + " is not a valid Subscription";
       LOGGER.warning(message);
@@ -260,23 +198,9 @@ class SubscriberImpl extends SubscriberImplBase {
       PullResponse response =
           PullResponse.newBuilder()
               .addAllReceivedMessages(
-                  subscriptionManager
-                      .pull(request.getMaxMessages(), request.getReturnImmediately())
-                      .stream()
-                      .map(
-                          rm -> {
-                            ReceivedMessage receivedMessage =
-                                ReceivedMessage.newBuilder()
-                                    .setAckId(rm.getMessageId())
-                                    .setMessage(rm)
-                                    .build();
-                            statisticsManager.computeSubscriber(
-                                subscription,
-                                receivedMessage.getMessage().getData(),
-                                receivedMessage.getMessage().getPublishTime());
-                            return receivedMessage;
-                          })
-                      .collect(Collectors.toList()))
+                  buildReceivedMessageList(
+                      subscriptionManager.pull(
+                          request.getMaxMessages(), request.getReturnImmediately())))
               .build();
       LOGGER.fine("Returning " + response.getReceivedMessagesCount() + " messages");
       responseObserver.onNext(response);
@@ -286,8 +210,7 @@ class SubscriberImpl extends SubscriberImplBase {
 
   @Override
   public void acknowledge(AcknowledgeRequest request, StreamObserver<Empty> responseObserver) {
-    SubscriptionManager subscriptionManager =
-        subscriptions.get(getLastNodeInSubscription(request.getSubscription()));
+    SubscriptionManager subscriptionManager = subscriptions.get(request.getSubscription());
     if (subscriptionManager == null) {
       String message = request.getSubscription() + " is not a valid Subscription";
       LOGGER.warning(message);
@@ -303,8 +226,7 @@ class SubscriberImpl extends SubscriberImplBase {
   @Override
   public void modifyAckDeadline(
       ModifyAckDeadlineRequest request, StreamObserver<Empty> responseObserver) {
-    String subscription = getLastNodeInSubscription(request.getSubscription());
-    SubscriptionManager subscriptionManager = subscriptions.get(subscription);
+    SubscriptionManager subscriptionManager = subscriptions.get(request.getSubscription());
     if (subscriptionManager == null) {
       String message = request.getSubscription() + " is not a valid Subscription";
       LOGGER.warning(message);
@@ -325,51 +247,23 @@ class SubscriberImpl extends SubscriberImplBase {
     return new StreamingPullStreamObserver(responseObserver);
   }
 
-  private Subscription subscriptionFromConfig(SubscriptionProperties configuration) {
-    return Subscription.newBuilder()
-        .setName(configuration.getName())
-        .setTopic(configuration.getTopic())
-        .setPushConfig(PushConfig.getDefaultInstance())
-        .setAckDeadlineSeconds(configuration.getAckDeadlineSeconds())
-        .build();
-  }
-
-  private SubscriptionProperties buildSubscriptionProperty(Subscription request) {
-    SubscriptionProperties properties = new SubscriptionProperties();
-    properties.setAckDeadlineSeconds(request.getAckDeadlineSeconds());
-    properties.setName(getLastNodeInSubscription(request.getName()));
-    properties.setTopic(getLastNodeInTopic(request.getTopic()));
-    return properties;
-  }
-
-  private void validateCreation(Subscription request) throws StatusException {
-    KafkaProperties kafkaProperties = Configuration.getApplicationProperties().getKafkaProperties();
-
-    if (!kafkaProperties.getTopics().contains(getLastNodeInTopic(request.getTopic()))) {
-      throw Status.NOT_FOUND
-          .withDescription("Topic not found: " + getLastNodeInTopic(request.getTopic()))
-          .asException();
-    }
-
-    List<String> subscriptions =
-        kafkaProperties
-            .getConsumerProperties()
-            .getSubscriptions()
-            .stream()
-            .map(SubscriptionProperties::getName)
-            .map(Configuration::getLastNodeInSubscription)
-            .collect(Collectors.toList());
-
-    if (subscriptions.contains(getLastNodeInSubscription(request.getName()))) {
-      throw Status.ALREADY_EXISTS.withDescription("Subscription already exists.").asException();
-    }
+  private List<ReceivedMessage> buildReceivedMessageList(List<PubsubMessage> pubsubMessages) {
+    // TODO: Add stats collection
+    // statisticsManager.computeSubscriber(
+    //                                    subscription,
+    //                                    receivedMessage.getMessage().getData(),
+    //                                    receivedMessage.getMessage().getPublishTime());
+    return pubsubMessages
+        .stream()
+        .map(m -> ReceivedMessage.newBuilder().setAckId(m.getMessageId()).setMessage(m).build())
+        .collect(Collectors.toList());
   }
 
   /**
    * Implementation of the Subscriber StreamingPull bidi streaming method. Modeled after the
    * implementation found in the Cloud Pub/Sub emulator available in the gcloud CLI tool.
    */
-  private class StreamingPullStreamObserver implements StreamObserver<StreamingPullRequest> {
+  private final class StreamingPullStreamObserver implements StreamObserver<StreamingPullRequest> {
 
     private static final int MESSAGES_PER_STREAM = 500;
     private static final int MIN_POLL_INTERVAL = 1;
@@ -444,27 +338,25 @@ class SubscriberImpl extends SubscriberImplBase {
      */
     private void processSubscription(StreamingPullRequest request) throws StatusException {
       if (isNull(subscriptionManager)) {
-        String subscription = getLastNodeInSubscription(request.getSubscription());
-        subscriptionManager = subscriptions.get(subscription);
+        subscriptionManager = subscriptions.get(request.getSubscription());
         if (subscriptionManager == null) {
           String message = request.getSubscription() + " is not a valid Subscription";
           LOGGER.warning(message);
           throw Status.NOT_FOUND.withDescription(message).asException();
         }
-        streamId = subscription + "-" + STREAMING_PULL_ID.getAndIncrement();
+        streamId = request.getSubscription() + "-" + STREAMING_PULL_ID.getAndIncrement();
         streamAckDeadlineSecs = request.getStreamAckDeadlineSeconds();
         if (streamAckDeadlineSecs < 10 || streamAckDeadlineSecs > 600) {
           LOGGER.warning(
-              format(
+              String.format(
                   "%s is not a valid Stream ack deadline, reverting to default for %s (%d)s",
                   request.getStreamAckDeadlineSeconds(),
-                  subscriptionManager.getSubscriptionProperties().getName(),
-                  subscriptionManager.getSubscriptionProperties().getAckDeadlineSeconds()));
-          streamAckDeadlineSecs =
-              subscriptionManager.getSubscriptionProperties().getAckDeadlineSeconds();
+                  subscriptionManager.getSubscription().getName(),
+                  subscriptionManager.getSubscription().getAckDeadlineSeconds()));
+          streamAckDeadlineSecs = subscriptionManager.getSubscription().getAckDeadlineSeconds();
         }
         LOGGER.info("StreamingPull " + streamId + " initialized by client");
-        streamingPullExecutorService.submit(() -> this.streamMessages(subscription));
+        streamingPullExecutorService.submit(() -> this.streamMessages(request.getSubscription()));
 
       } else if (!request.getSubscription().isEmpty()) {
         String message = "Subscription name can only be specified in first request";
@@ -540,23 +432,9 @@ class SubscriberImpl extends SubscriberImplBase {
           StreamingPullResponse response =
               StreamingPullResponse.newBuilder()
                   .addAllReceivedMessages(
-                      subscriptionManager
-                          .pull(MESSAGES_PER_STREAM, true, streamAckDeadlineSecs)
-                          .stream()
-                          .map(
-                              rm -> {
-                                ReceivedMessage receivedMessage =
-                                    ReceivedMessage.newBuilder()
-                                        .setAckId(rm.getMessageId())
-                                        .setMessage(rm)
-                                        .build();
-                                statisticsManager.computeSubscriber(
-                                    subscription,
-                                    receivedMessage.getMessage().getData(),
-                                    receivedMessage.getMessage().getPublishTime());
-                                return receivedMessage;
-                              })
-                          .collect(Collectors.toList()))
+                      buildReceivedMessageList(
+                          subscriptionManager.pull(
+                              MESSAGES_PER_STREAM, true, streamAckDeadlineSecs)))
                   .build();
 
           if (response.getReceivedMessagesCount() > 0) {

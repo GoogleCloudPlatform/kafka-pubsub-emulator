@@ -26,7 +26,7 @@ import com.google.api.gax.grpc.GrpcTransportChannel;
 import com.google.api.gax.rpc.FixedTransportChannelProvider;
 import com.google.api.gax.rpc.TransportChannelProvider;
 import com.google.cloud.partners.pubsub.kafka.Configuration;
-import com.google.cloud.partners.pubsub.kafka.KafkaClientFactoryImpl;
+import com.google.cloud.partners.pubsub.kafka.DefaultKafkaClientFactory;
 import com.google.cloud.partners.pubsub.kafka.PubsubEmulatorServer;
 import com.google.cloud.partners.pubsub.kafka.common.AdminGrpc;
 import com.google.cloud.partners.pubsub.kafka.integration.rule.KafkaRule;
@@ -210,7 +210,7 @@ public abstract class BaseIT {
   protected Consumer<String, ByteBuffer> getValidationConsumer(
       SubscriptionProperties subscriptionProperties) {
     Consumer<String, ByteBuffer> consumer =
-        new KafkaClientFactoryImpl().createConsumer(subscriptionProperties.getName());
+        new DefaultKafkaClientFactory().createConsumer(subscriptionProperties.getName());
 
     Set<TopicPartition> topicPartitions =
         consumer

@@ -50,7 +50,7 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
-public class AdminImplTest {
+public class AdminServiceTest {
 
   private static final String TEST_TOPIC_1 = "test-topic-1";
   private static final String TEST_TOPIC_2 = "test-topic-2";
@@ -69,7 +69,7 @@ public class AdminImplTest {
 
   @Before
   public void setUp() {
-    AdminImpl admin = new AdminImpl(statisticsManager);
+    AdminService admin = new AdminService(statisticsManager);
     grpcServerRule.getServiceRegistry().addService(admin);
     blockingStub = AdminGrpc.newBlockingStub(grpcServerRule.getChannel());
   }
