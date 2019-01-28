@@ -70,7 +70,7 @@ class PublisherService extends PublisherImplBase {
   private final AtomicInteger nextProducerIndex;
   private final StatisticsManager statisticsManager;
 
-  public PublisherService(
+  PublisherService(
       ConfigurationRepository configurationRepository,
       KafkaClientFactory kafkaClientFactory,
       StatisticsManager statisticsManager) {

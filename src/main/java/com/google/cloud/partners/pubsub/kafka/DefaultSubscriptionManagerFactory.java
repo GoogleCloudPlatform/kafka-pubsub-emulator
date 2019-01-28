@@ -16,16 +16,17 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
-import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
+import com.google.pubsub.v1.Subscription;
+import java.time.Clock;
 import java.util.concurrent.ScheduledExecutorService;
 
-public class SubscriptionManagerFactoryImpl implements SubscriptionManagerFactory {
+public class DefaultSubscriptionManagerFactory implements SubscriptionManagerFactory {
 
   @Override
   public SubscriptionManager create(
-      SubscriptionProperties subscription,
+      Subscription subscription,
       KafkaClientFactory clientFactory,
       ScheduledExecutorService commitExecutor) {
-    return new SubscriptionManager(subscription, clientFactory, commitExecutor);
+    return new SubscriptionManager(subscription, clientFactory, Clock.systemUTC(), commitExecutor);
   }
 }

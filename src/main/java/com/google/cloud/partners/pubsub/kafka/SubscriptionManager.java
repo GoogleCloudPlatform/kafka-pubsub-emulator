@@ -16,14 +16,18 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
+import static com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.KAFKA_TOPIC;
+
 import com.google.cloud.partners.pubsub.kafka.properties.ConsumerProperties;
 import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Timestamp;
 import com.google.pubsub.v1.PubsubMessage;
+import com.google.pubsub.v1.Subscription;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -68,8 +72,9 @@ class SubscriptionManager {
   private static final int COMMIT_DELAY = 5; // 5 seconds
   private static final long POLL_TIMEOUT = 5000; // 5 seconds
 
+  private final String kafkaTopicName;
   private final KafkaClientFactory kafkaClientFactory;
-  private final SubscriptionProperties subscriptionProperties;
+  private final Clock clock;
   private final ScheduledExecutorService commitExecutorService;
 
   // TODO: Recreate consumers if any lose connection with brokers
@@ -80,23 +85,26 @@ class SubscriptionManager {
   private final Map<String, OutstandingMessage> outstandingMessages;
   private final AtomicReference<ScheduledFuture<?>> commitFuture;
   private final int consumerExecutors;
+  private final Subscription subscription;
   private String hostName;
   private boolean shutdown;
 
-  public SubscriptionManager(
-      SubscriptionProperties subscriptionProperties,
+  SubscriptionManager(
+      Subscription subscription,
       KafkaClientFactory kafkaClientFactory,
+      Clock clock,
       ScheduledExecutorService commitExecutorService) {
     this.consumerExecutors =
         Configuration.getApplicationProperties()
             .getKafkaProperties()
             .getConsumerProperties()
             .getExecutors();
-
-    this.subscriptionProperties = subscriptionProperties;
+    this.subscription = subscription;
     this.kafkaClientFactory = kafkaClientFactory;
+    this.clock = clock;
     this.commitExecutorService = commitExecutorService;
 
+    kafkaTopicName = subscription.getLabelsOrDefault(KAFKA_TOPIC, subscription.getTopic());
     committedOffsets = new HashMap<>();
     kafkaConsumers = initializeConsumers();
 
@@ -113,8 +121,8 @@ class SubscriptionManager {
     }
   }
 
-  public SubscriptionProperties getSubscriptionProperties() {
-    return subscriptionProperties;
+  public Subscription getSubscription() {
+    return subscription;
   }
 
   /** Shutdown hook should close all Consumers */
@@ -139,7 +147,7 @@ class SubscriptionManager {
    * @return List of PubsubMessage objects.
    */
   public List<PubsubMessage> pull(int maxMessages, boolean returnImmediately) {
-    return pull(maxMessages, returnImmediately, subscriptionProperties.getAckDeadlineSeconds());
+    return pull(maxMessages, returnImmediately, subscription.getAckDeadlineSeconds());
   }
 
   /**
@@ -160,7 +168,7 @@ class SubscriptionManager {
     }
 
     // Add each message to the outstanding map
-    Instant now = Instant.now();
+    Instant now = clock.instant();
     response.forEach(
         m -> {
           OutstandingMessage om =
@@ -185,7 +193,7 @@ class SubscriptionManager {
    */
   public List<String> acknowledge(List<String> ackIds) {
     List<String> response = new ArrayList<>();
-    Instant now = Instant.now();
+    Instant now = clock.instant();
     ackIds
         .stream()
         .filter(outstandingMessages::containsKey)
@@ -256,7 +264,7 @@ class SubscriptionManager {
       return commits;
     }
 
-    String commitMetadata = "Committed at " + Instant.now().toEpochMilli() + " by " + hostName;
+    String commitMetadata = "Committed at " + clock.instant().toEpochMilli() + " by " + hostName;
     // Determine new offsets for each TopicPartition
     for (TopicPartition tp : committedOffsets.keySet()) {
       // Check unacked set first
@@ -276,7 +284,7 @@ class SubscriptionManager {
       Map<TopicPartition, OffsetAndMetadata> consumerCommits = new HashMap<>();
       boolean shouldCommit = false;
       for (int p = i; p < committedOffsets.keySet().size(); p += kafkaConsumers.size()) {
-        TopicPartition tp = new TopicPartition(subscriptionProperties.getTopic(), p);
+        TopicPartition tp = new TopicPartition(kafkaTopicName, p);
         OffsetAndMetadata current = committedOffsets.get(tp);
         OffsetAndMetadata newOffset = commits.get(tp);
         if (newOffset != null && (current == null || newOffset.offset() > current.offset())) {
@@ -323,7 +331,7 @@ class SubscriptionManager {
    */
   public List<String> modifyAckDeadline(List<String> ackIds, int ackDeadlineSecs) {
     List<String> response = new ArrayList<>();
-    Instant now = Instant.now();
+    Instant now = clock.instant();
     ackIds
         .stream()
         .filter(outstandingMessages::containsKey)
@@ -348,9 +356,11 @@ class SubscriptionManager {
   public String toString() {
     return "SubscriptionManager{"
         + "name="
-        + subscriptionProperties.getName()
+        + subscription.getName()
         + ", topic="
-        + subscriptionProperties.getTopic()
+        + subscription.getTopic()
+        + ", kafkaTopic="
+        + kafkaTopicName
         + ", buffer="
         + buffer.size()
         + ", bufferBytes="
@@ -380,8 +390,7 @@ class SubscriptionManager {
     }
 
     if (polled != null) {
-      for (ConsumerRecord<String, ByteBuffer> record :
-          polled.records(subscriptionProperties.getTopic())) {
+      for (ConsumerRecord<String, ByteBuffer> record : polled.records(kafkaTopicName)) {
         buffer.add(record);
         newMessages++;
         queueSizeBytes.addAndGet(record.serializedValueSize());
@@ -474,21 +483,20 @@ class SubscriptionManager {
    */
   private List<Consumer<String, ByteBuffer>> initializeConsumers() {
     // Create first consumer and determine # partitions in topic
-    Consumer<String, ByteBuffer> first =
-        kafkaClientFactory.createConsumer(subscriptionProperties.getName());
-    List<PartitionInfo> partitionInfo = first.partitionsFor(subscriptionProperties.getTopic());
+    Consumer<String, ByteBuffer> first = kafkaClientFactory.createConsumer(subscription.getName());
+    List<PartitionInfo> partitionInfo = first.partitionsFor(kafkaTopicName);
 
     int totalConsumers = Math.min(partitionInfo.size(), consumerExecutors);
     List<Consumer<String, ByteBuffer>> consumers = new ArrayList<>(totalConsumers);
     for (int i = 0; i < totalConsumers; i++) {
       Consumer<String, ByteBuffer> consumer =
-          i == 0 ? first : kafkaClientFactory.createConsumer(subscriptionProperties.getName());
+          i == 0 ? first : kafkaClientFactory.createConsumer(subscription.getName());
       int consumerIndex = i;
       Set<TopicPartition> partitionSet =
           partitionInfo
               .stream()
               .filter(p -> p.partition() % totalConsumers == consumerIndex)
-              .map(p -> new TopicPartition(subscriptionProperties.getTopic(), p.partition()))
+              .map(p -> new TopicPartition(kafkaTopicName, p.partition()))
               .collect(Collectors.toSet());
       consumer.assign(partitionSet);
       Map<TopicPartition, Long> endOffsets = consumer.endOffsets(partitionSet);

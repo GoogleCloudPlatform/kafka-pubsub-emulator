@@ -10,7 +10,7 @@ import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.function.Function;
 
-public class PaginationManager<T> {
+class PaginationManager<T> {
 
   private static final int DEFAULT_PAGINATION_SIZE = 20;
 

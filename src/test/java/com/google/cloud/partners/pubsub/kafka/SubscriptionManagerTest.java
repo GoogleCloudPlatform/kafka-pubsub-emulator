@@ -16,13 +16,21 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
+import static com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.KAFKA_TOPIC;
 import static java.util.stream.Collectors.toMap;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.when;
 
 import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
 import com.google.pubsub.v1.PubsubMessage;
+import com.google.pubsub.v1.Subscription;
 import java.nio.ByteBuffer;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.temporal.TemporalUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -41,13 +49,24 @@ import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.internals.RecordHeader;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnitRunner;
 
+@RunWith(MockitoJUnitRunner.class)
 public class SubscriptionManagerTest {
 
-  private static final String SUBSCRIPTION = "test-subscription";
-  private static final String TOPIC = "test-topic";
+  private static final String KAFKA_TOPIC_NAME = "kafka-topic-1";
+  private static final Subscription SUBSCRIPTION =
+      Subscription.newBuilder()
+          .setName("projects/project-1/subscriptions/new-subscription")
+          .setTopic("projects/project-1/topics/topic-1")
+          .putLabels(KAFKA_TOPIC, KAFKA_TOPIC_NAME)
+          .setAckDeadlineSeconds(10)
+          .build();
 
-  private MockKafkaClientFactoryImpl kafkaClientFactory;
+  @Mock private Clock mockClock;
+  private MockKafkaClientFactory kafkaClientFactory;
   private SubscriptionManager subscriptionManager;
   private ScheduledExecutorService scheduledExecutor;
 
@@ -60,17 +79,17 @@ public class SubscriptionManagerTest {
   public void shutdown() {
     subscriptionManager.shutdown();
     kafkaClientFactory
-        .getConsumersForSubscription(SUBSCRIPTION)
-        .forEach(c -> assertEquals(true, c.closed()));
+        .getConsumersForSubscription(SUBSCRIPTION.getName())
+        .forEach(c -> assertTrue(c.closed()));
   }
 
   @Test
-  public void pullSingleConsumer() {
+  public void pull() {
     int partitions = 3;
     int recordsPerPartition = 2;
     MockConsumer<String, ByteBuffer> mockConsumer =
-        kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION).get(0);
-    TestHelpers.generateConsumerRecords(TOPIC, partitions, recordsPerPartition, null)
+        kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION.getName()).get(0);
+    TestHelpers.generateConsumerRecords(KAFKA_TOPIC_NAME, partitions, recordsPerPartition, null)
         .forEach(mockConsumer::addRecord);
 
     List<PubsubMessage> response = subscriptionManager.pull(10, false);
@@ -102,7 +121,7 @@ public class SubscriptionManagerTest {
   }
 
   @Test
-  public void pullSingleConsumerWithHeader() {
+  public void pull_withHeader() {
     int partitions = 3;
     int recordsPerPartition = 2;
 
@@ -111,8 +130,8 @@ public class SubscriptionManagerTest {
     headers.add(new RecordHeader("key2", "value2".getBytes()));
 
     MockConsumer<String, ByteBuffer> mockConsumer =
-        kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION).get(0);
-    TestHelpers.generateConsumerRecords(TOPIC, partitions, recordsPerPartition, headers)
+        kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION.getName()).get(0);
+    TestHelpers.generateConsumerRecords(KAFKA_TOPIC_NAME, partitions, recordsPerPartition, headers)
         .forEach(mockConsumer::addRecord);
 
     List<PubsubMessage> response = subscriptionManager.pull(10, false);
@@ -159,23 +178,18 @@ public class SubscriptionManagerTest {
     assertEquals("message-0005", messages.get(5));
   }
 
-  private void assertPubSubAttributesMap(
-      Map<String, Map<String, String>> attributesMaps, String messageId) {
-    assertEquals("value1", attributesMaps.get(messageId).get("key1"));
-    assertEquals("value2", attributesMaps.get(messageId).get("key2"));
-  }
-
   @Test
-  public void pullMultipleConsumers() {
+  public void pull_multipleConsumers() {
     int partitions = 3;
     int recordsPerPartition = 5;
     configureSubscriptionManager(3, partitions, 10);
 
     // Generate records to each Consumer based on the partitions they were assigned to
     List<ConsumerRecord<String, ByteBuffer>> consumerRecords =
-        TestHelpers.generateConsumerRecords(TOPIC, partitions, recordsPerPartition, null);
+        TestHelpers.generateConsumerRecords(
+            KAFKA_TOPIC_NAME, partitions, recordsPerPartition, null);
     kafkaClientFactory
-        .getConsumersForSubscription(SUBSCRIPTION)
+        .getConsumersForSubscription(SUBSCRIPTION.getName())
         .forEach(
             c ->
                 c.assignment()
@@ -256,18 +270,18 @@ public class SubscriptionManagerTest {
   }
 
   @Test
-  public void pullEmpty() {
+  public void pull_empty() {
     List<PubsubMessage> response = subscriptionManager.pull(100, false);
-    assertEquals(true, response.isEmpty());
+    assertTrue(response.isEmpty());
   }
 
   @Test
-  public void acknowledgeSuccessfully() {
+  public void acknowledge() {
     int partitions = 3;
     int recordsPerPartition = 2;
     MockConsumer<String, ByteBuffer> mockConsumer =
-        kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION).get(0);
-    TestHelpers.generateConsumerRecords(TOPIC, partitions, recordsPerPartition, null)
+        kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION.getName()).get(0);
+    TestHelpers.generateConsumerRecords(KAFKA_TOPIC_NAME, partitions, recordsPerPartition, null)
         .forEach(mockConsumer::addRecord);
 
     List<String> ackIds =
@@ -282,19 +296,19 @@ public class SubscriptionManagerTest {
     Map<TopicPartition, OffsetAndMetadata> commits =
         subscriptionManager.commitFromAcknowledgments();
     for (int i = 0; i < partitions; i++) {
-      TopicPartition topicPartition = new TopicPartition(TOPIC, i);
+      TopicPartition topicPartition = new TopicPartition(KAFKA_TOPIC_NAME, i);
       assertEquals(2, commits.get(topicPartition).offset());
       assertEquals(2, mockConsumer.position(topicPartition));
     }
   }
 
   @Test
-  public void acknowledgeRepeatedCallsUseSameFuture() {
+  public void acknowledge_repeatedCallsUseSameFuture() {
     int partitions = 3;
     int recordsPerPartition = 2;
     MockConsumer<String, ByteBuffer> mockConsumer =
-        kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION).get(0);
-    TestHelpers.generateConsumerRecords(TOPIC, partitions, recordsPerPartition, null)
+        kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION.getName()).get(0);
+    TestHelpers.generateConsumerRecords(KAFKA_TOPIC_NAME, partitions, recordsPerPartition, null)
         .forEach(mockConsumer::addRecord);
 
     // Ack each message separately
@@ -313,27 +327,27 @@ public class SubscriptionManagerTest {
     Map<TopicPartition, OffsetAndMetadata> commits =
         subscriptionManager.commitFromAcknowledgments();
     for (int i = 0; i < partitions; i++) {
-      TopicPartition topicPartition = new TopicPartition(TOPIC, i);
+      TopicPartition topicPartition = new TopicPartition(KAFKA_TOPIC_NAME, i);
       assertEquals(2, commits.get(topicPartition).offset());
       assertEquals(2, mockConsumer.position(topicPartition));
     }
   }
 
   @Test
-  public void acknowledgeUnknownAckIds() {
+  public void acknowledge_unknownAckIds() {
     assertEquals(
         Collections.emptyList(),
         subscriptionManager.acknowledge(Arrays.asList("0-0", "0-1", "0-2")));
   }
 
   @Test
-  public void acknowledgeExpired() {
+  public void acknowledge_expired() {
     int partitions = 3;
     int recordsPerPartition = 2;
     configureSubscriptionManager(1, partitions, -1);
     MockConsumer<String, ByteBuffer> mockConsumer =
-        kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION).get(0);
-    TestHelpers.generateConsumerRecords(TOPIC, partitions, recordsPerPartition, null)
+        kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION.getName()).get(0);
+    TestHelpers.generateConsumerRecords(KAFKA_TOPIC_NAME, partitions, recordsPerPartition, null)
         .forEach(mockConsumer::addRecord);
 
     List<String> ackIds =
@@ -342,25 +356,27 @@ public class SubscriptionManagerTest {
             .stream()
             .map(PubsubMessage::getMessageId)
             .collect(Collectors.toList());
+    when(mockClock.instant()).thenReturn(Instant.now());
+
     assertEquals(Collections.emptyList(), subscriptionManager.acknowledge(ackIds));
     assertEquals(0, scheduledExecutor.shutdownNow().size());
     Map<TopicPartition, OffsetAndMetadata> commits =
         subscriptionManager.commitFromAcknowledgments();
     for (int i = 0; i < partitions; i++) {
-      TopicPartition topicPartition = new TopicPartition(TOPIC, i);
+      TopicPartition topicPartition = new TopicPartition(KAFKA_TOPIC_NAME, i);
       assertEquals(0, commits.get(topicPartition).offset());
       assertEquals(0, mockConsumer.position(topicPartition));
     }
   }
 
   @Test
-  public void modifyAckDeadlineSuccessfully() {
+  public void modifyAckDeadline() {
     int partitions = 3;
     int recordsPerPartition = 2;
     configureSubscriptionManager(1, partitions, 2);
     MockConsumer<String, ByteBuffer> mockConsumer =
-        kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION).get(0);
-    TestHelpers.generateConsumerRecords(TOPIC, partitions, recordsPerPartition, null)
+        kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION.getName()).get(0);
+    TestHelpers.generateConsumerRecords(KAFKA_TOPIC_NAME, partitions, recordsPerPartition, null)
         .forEach(mockConsumer::addRecord);
 
     List<String> ackIds =
@@ -380,7 +396,7 @@ public class SubscriptionManagerTest {
                 Map<TopicPartition, OffsetAndMetadata> commits =
                     subscriptionManager.commitFromAcknowledgments();
                 for (int i = 0; i < partitions; i++) {
-                  TopicPartition topicPartition = new TopicPartition(TOPIC, i);
+                  TopicPartition topicPartition = new TopicPartition(KAFKA_TOPIC_NAME, i);
                   assertEquals(2, commits.get(topicPartition).offset());
                   assertEquals(2, mockConsumer.position(topicPartition));
                 }
@@ -394,13 +410,13 @@ public class SubscriptionManagerTest {
   }
 
   @Test
-  public void modifyAckDeadlineExpired() {
+  public void modifyAckDeadline_expired() {
     int partitions = 3;
     int recordsPerPartition = 2;
     configureSubscriptionManager(1, partitions, -1);
     MockConsumer<String, ByteBuffer> mockConsumer =
-        kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION).get(0);
-    TestHelpers.generateConsumerRecords(TOPIC, partitions, recordsPerPartition, null)
+        kafkaClientFactory.getConsumersForSubscription(SUBSCRIPTION.getName()).get(0);
+    TestHelpers.generateConsumerRecords(KAFKA_TOPIC_NAME, partitions, recordsPerPartition, null)
         .forEach(mockConsumer::addRecord);
 
     List<String> ackIds =
@@ -409,13 +425,15 @@ public class SubscriptionManagerTest {
             .stream()
             .map(PubsubMessage::getMessageId)
             .collect(Collectors.toList());
+
+    when(mockClock.instant()).thenReturn(Instant.now());
     assertEquals(Collections.emptyList(), subscriptionManager.modifyAckDeadline(ackIds, 10));
     assertEquals(Collections.emptyList(), subscriptionManager.acknowledge(ackIds));
     assertEquals(0, scheduledExecutor.shutdownNow().size());
     Map<TopicPartition, OffsetAndMetadata> commits =
         subscriptionManager.commitFromAcknowledgments();
     for (int i = 0; i < partitions; i++) {
-      TopicPartition topicPartition = new TopicPartition(TOPIC, i);
+      TopicPartition topicPartition = new TopicPartition(KAFKA_TOPIC_NAME, i);
       assertEquals(0, commits.get(topicPartition).offset());
       assertEquals(0, mockConsumer.position(topicPartition));
     }
@@ -426,14 +444,18 @@ public class SubscriptionManagerTest {
       int consumersPerSubscription, int topicPartitions, int ackDeadlineSecs) {
     TestHelpers.useTestApplicationConfig(1, consumersPerSubscription);
     scheduledExecutor = Executors.newSingleThreadScheduledExecutor();
-    kafkaClientFactory = new MockKafkaClientFactoryImpl();
+    kafkaClientFactory = new MockKafkaClientFactory();
     kafkaClientFactory.configureConsumersForSubscription(
-        TOPIC, SUBSCRIPTION, topicPartitions, 0L, 0L);
-    SubscriptionProperties subscriptionProperties = new SubscriptionProperties();
-    subscriptionProperties.setName(SUBSCRIPTION);
-    subscriptionProperties.setTopic(TOPIC);
-    subscriptionProperties.setAckDeadlineSeconds(ackDeadlineSecs);
+        KAFKA_TOPIC_NAME, SUBSCRIPTION.getName(), topicPartitions, 0L, 0L);
+    when(mockClock.instant()).thenReturn(Instant.ofEpochSecond(1546300800));
+
     subscriptionManager =
-        new SubscriptionManager(subscriptionProperties, kafkaClientFactory, scheduledExecutor);
+        new SubscriptionManager(SUBSCRIPTION, kafkaClientFactory, mockClock, scheduledExecutor);
+  }
+
+  private void assertPubSubAttributesMap(
+      Map<String, Map<String, String>> attributesMaps, String messageId) {
+    assertEquals("value1", attributesMaps.get(messageId).get("key1"));
+    assertEquals("value2", attributesMaps.get(messageId).get("key2"));
   }
 }

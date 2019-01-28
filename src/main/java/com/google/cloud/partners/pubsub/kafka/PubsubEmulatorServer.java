@@ -71,8 +71,8 @@ public class PubsubEmulatorServer {
 
   private final ConfigurationRepository configurationRepository;
   private PublisherService publisher;
-  private SubscriberImpl subscriber;
-  private AdminImpl admin;
+  private SubscriberService subscriber;
+  private AdminService admin;
   private Server server;
   private HealthStatusManager healthStatusManager;
 
@@ -108,16 +108,20 @@ public class PubsubEmulatorServer {
   public void start() throws IOException {
     ApplicationProperties applicationProperties = Configuration.getApplicationProperties();
 
-    KafkaClientFactory kafkaClientFactory = new KafkaClientFactoryImpl();
-    SubscriptionManagerFactory subscriptionManagerFactory = new SubscriptionManagerFactoryImpl();
+    KafkaClientFactory kafkaClientFactory = new DefaultKafkaClientFactory();
+    SubscriptionManagerFactory subscriptionManagerFactory = new DefaultSubscriptionManagerFactory();
     StatisticsManager statisticsManager = new StatisticsManager(Clock.systemUTC());
 
     healthStatusManager = new HealthStatusManager();
-    admin = new AdminImpl(statisticsManager);
+    admin = new AdminService(statisticsManager);
     publisher =
         new PublisherService(configurationRepository, kafkaClientFactory, statisticsManager);
     subscriber =
-        new SubscriberImpl(kafkaClientFactory, subscriptionManagerFactory, statisticsManager);
+        new SubscriberService(
+            configurationRepository,
+            kafkaClientFactory,
+            subscriptionManagerFactory,
+            statisticsManager);
     server = initializeServer(applicationProperties.getServerProperties());
 
     server.start();

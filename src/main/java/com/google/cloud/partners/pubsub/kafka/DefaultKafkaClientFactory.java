@@ -40,7 +40,7 @@ import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 
 /** Factory implementation for building Kafka client objects based on a shared set of properties. */
-public class KafkaClientFactoryImpl implements KafkaClientFactory {
+public class DefaultKafkaClientFactory implements KafkaClientFactory {
 
   private static final String ACKS_CONFIG_VALUE = "all";
   private static final String PRODUCER_KEY_SERIALIZER_CONFIG_VALUE =
@@ -59,7 +59,7 @@ public class KafkaClientFactoryImpl implements KafkaClientFactory {
    * Create a new KafkaClientFactoryImpl which will be used to provide instances of Kafka client
    * objects to produce or consume records to/from topics.
    */
-  public KafkaClientFactoryImpl() {
+  public DefaultKafkaClientFactory() {
     applicationProperties = Configuration.getApplicationProperties();
   }
 

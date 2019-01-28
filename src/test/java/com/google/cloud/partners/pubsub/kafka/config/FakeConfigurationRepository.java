@@ -98,6 +98,10 @@ public class FakeConfigurationRepository extends ConfigurationRepository {
     super(CONFIGURATION);
   }
 
+  public FakeConfigurationRepository(Configuration configuration) {
+    super(configuration);
+  }
+
   @Override
   public void save() {}
 }

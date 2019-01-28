@@ -30,13 +30,13 @@ import org.apache.kafka.common.Node;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 
-public class MockKafkaClientFactoryImpl implements KafkaClientFactory {
+public class MockKafkaClientFactory implements KafkaClientFactory {
 
   private final List<MockProducer<String, ByteBuffer>> createdProducers;
   private final Map<String, List<MockConsumer<String, ByteBuffer>>> createdConsumers;
   private final Map<String, MockConsumerConfiguration> consumerConfigurations;
 
-  public MockKafkaClientFactoryImpl() {
+  public MockKafkaClientFactory() {
     createdProducers = new ArrayList<>();
     createdConsumers = new HashMap<>();
     consumerConfigurations = new HashMap<>();
@@ -74,7 +74,7 @@ public class MockKafkaClientFactoryImpl implements KafkaClientFactory {
     return producer;
   }
 
-  public void configureConsumersForSubscription(
+  void configureConsumersForSubscription(
       String topic, String subscription, int partitions, long startingOffset, long endingOffset) {
     consumerConfigurations.put(
         subscription,

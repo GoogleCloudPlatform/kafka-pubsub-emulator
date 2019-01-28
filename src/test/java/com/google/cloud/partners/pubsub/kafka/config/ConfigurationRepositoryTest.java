@@ -22,6 +22,13 @@ public class ConfigurationRepositoryTest {
   }
 
   @Test
+  public void getProjects() {
+    assertThat(
+        configurationRepository.getProjects(),
+        Matchers.contains("projects/project-1", "projects/project-2"));
+  }
+
+  @Test
   public void getTopics() {
     assertThat(
         configurationRepository.getTopics("projects/project-1"),
@@ -60,21 +67,25 @@ public class ConfigurationRepositoryTest {
             com.google.pubsub.v1.Subscription.newBuilder()
                 .setName("projects/project-1/subscriptions/subscription-1")
                 .setTopic("projects/project-1/topics/topic-1")
+                .putLabels(KAFKA_TOPIC, "kafka-topic-1")
                 .setAckDeadlineSeconds(10)
                 .build(),
             com.google.pubsub.v1.Subscription.newBuilder()
                 .setName("projects/project-1/subscriptions/subscription-2")
                 .setTopic("projects/project-1/topics/topic-1")
+                .putLabels(KAFKA_TOPIC, "kafka-topic-1")
                 .setAckDeadlineSeconds(10)
                 .build(),
             com.google.pubsub.v1.Subscription.newBuilder()
                 .setName("projects/project-1/subscriptions/subscription-3")
                 .setTopic("projects/project-1/topics/topic-2")
+                .putLabels(KAFKA_TOPIC, "kafka-topic-2")
                 .setAckDeadlineSeconds(30)
                 .build(),
             com.google.pubsub.v1.Subscription.newBuilder()
                 .setName("projects/project-1/subscriptions/subscription-4")
                 .setTopic("projects/project-1/topics/topic-2")
+                .putLabels(KAFKA_TOPIC, "kafka-topic-2")
                 .setAckDeadlineSeconds(45)
                 .build()));
     assertThat(
@@ -83,16 +94,19 @@ public class ConfigurationRepositoryTest {
             com.google.pubsub.v1.Subscription.newBuilder()
                 .setName("projects/project-2/subscriptions/subscription-1")
                 .setTopic("projects/project-2/topics/topic-1")
+                .putLabels(KAFKA_TOPIC, "kafka-topic-1")
                 .setAckDeadlineSeconds(10)
                 .build(),
             com.google.pubsub.v1.Subscription.newBuilder()
                 .setName("projects/project-2/subscriptions/subscription-2")
                 .setTopic("projects/project-2/topics/topic-1")
+                .putLabels(KAFKA_TOPIC, "kafka-topic-1")
                 .setAckDeadlineSeconds(10)
                 .build(),
             com.google.pubsub.v1.Subscription.newBuilder()
                 .setName("projects/project-2/subscriptions/subscription-3")
                 .setTopic("projects/project-2/topics/topic-2")
+                .putLabels(KAFKA_TOPIC, "kafka-topic-2")
                 .setAckDeadlineSeconds(30)
                 .build()));
   }
@@ -174,26 +188,31 @@ public class ConfigurationRepositoryTest {
             com.google.pubsub.v1.Subscription.newBuilder()
                 .setName("projects/project-1/subscriptions/new-subscription")
                 .setTopic("projects/project-1/topics/topic-1")
+                .putLabels(KAFKA_TOPIC, "kafka-topic-1")
                 .setAckDeadlineSeconds(10)
                 .build(),
             com.google.pubsub.v1.Subscription.newBuilder()
                 .setName("projects/project-1/subscriptions/subscription-1")
                 .setTopic("projects/project-1/topics/topic-1")
+                .putLabels(KAFKA_TOPIC, "kafka-topic-1")
                 .setAckDeadlineSeconds(10)
                 .build(),
             com.google.pubsub.v1.Subscription.newBuilder()
                 .setName("projects/project-1/subscriptions/subscription-2")
                 .setTopic("projects/project-1/topics/topic-1")
+                .putLabels(KAFKA_TOPIC, "kafka-topic-1")
                 .setAckDeadlineSeconds(10)
                 .build(),
             com.google.pubsub.v1.Subscription.newBuilder()
                 .setName("projects/project-1/subscriptions/subscription-3")
                 .setTopic("projects/project-1/topics/topic-2")
+                .putLabels(KAFKA_TOPIC, "kafka-topic-2")
                 .setAckDeadlineSeconds(30)
                 .build(),
             com.google.pubsub.v1.Subscription.newBuilder()
                 .setName("projects/project-1/subscriptions/subscription-4")
                 .setTopic("projects/project-1/topics/topic-2")
+                .putLabels(KAFKA_TOPIC, "kafka-topic-2")
                 .setAckDeadlineSeconds(45)
                 .build()));
   }
@@ -236,11 +255,13 @@ public class ConfigurationRepositoryTest {
             com.google.pubsub.v1.Subscription.newBuilder()
                 .setName("projects/project-2/subscriptions/subscription-1")
                 .setTopic("projects/project-2/topics/topic-1")
+                .putLabels(KAFKA_TOPIC, "kafka-topic-1")
                 .setAckDeadlineSeconds(10)
                 .build(),
             com.google.pubsub.v1.Subscription.newBuilder()
                 .setName("projects/project-2/subscriptions/subscription-2")
                 .setTopic("projects/project-2/topics/topic-1")
+                .putLabels(KAFKA_TOPIC, "kafka-topic-1")
                 .setAckDeadlineSeconds(10)
                 .build()));
   }

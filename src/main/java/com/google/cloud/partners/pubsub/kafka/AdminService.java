@@ -44,7 +44,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-class AdminImpl extends AdminImplBase {
+class AdminService extends AdminImplBase {
 
   private static final String DECIMAL_FORMAT = "%19.2f";
 
@@ -54,7 +54,7 @@ class AdminImpl extends AdminImplBase {
 
   private final Instant startedAt;
 
-  AdminImpl(StatisticsManager statisticsManager) {
+  AdminService(StatisticsManager statisticsManager) {
     this.startedAt = Instant.now();
     this.statisticsManager = statisticsManager;
   }

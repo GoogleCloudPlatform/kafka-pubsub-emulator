@@ -30,11 +30,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /** Abstract class for managing emulator configuration properties. */
 public abstract class ConfigurationRepository {
 
-  static final String KAFKA_TOPIC = "kafka-topic";
+  public static final String KAFKA_TOPIC = "kafka-topic";
 
   private final SetMultimap<String, com.google.pubsub.v1.Topic> topicsByProject =
       Multimaps.synchronizedSetMultimap(HashMultimap.create());
@@ -51,11 +52,12 @@ public abstract class ConfigurationRepository {
       for (Topic t : p.getTopicsList()) {
         String projectName = ProjectName.format(p.getName());
         String topicName = ProjectTopicName.format(p.getName(), t.getName());
+        String kafkaTopic = Optional.ofNullable(t.getKafkaTopic()).orElse(t.getName());
         topicsByProject.put(
             projectName,
             com.google.pubsub.v1.Topic.newBuilder()
                 .setName(topicName)
-                .putLabels(KAFKA_TOPIC, t.getKafkaTopic())
+                .putLabels(KAFKA_TOPIC, kafkaTopic)
                 .build());
 
         for (Subscription s : t.getSubscriptionsList()) {
@@ -65,6 +67,7 @@ public abstract class ConfigurationRepository {
                   .setTopic(topicName)
                   .setName(ProjectSubscriptionName.format(p.getName(), s.getName()))
                   .setAckDeadlineSeconds(s.getAckDeadlineSeconds())
+                  .putLabels(KAFKA_TOPIC, kafkaTopic)
                   .build());
         }
       }
@@ -84,8 +87,17 @@ public abstract class ConfigurationRepository {
     return originalConfiguration.getServer();
   }
 
+  /** Returns the List of Projects */
+  public final List<String> getProjects() {
+    return Stream.concat(
+            topicsByProject.keySet().stream(), subscriptionsByProject.keySet().stream())
+        .distinct()
+        .sorted()
+        .collect(Collectors.toList());
+  }
+
   /** Returns the Topic object with the given name if it exists */
-  public Optional<com.google.pubsub.v1.Topic> getTopicByName(String topicName) {
+  public final Optional<com.google.pubsub.v1.Topic> getTopicByName(String topicName) {
     return topicsByProject
         .values()
         .stream()
@@ -94,7 +106,7 @@ public abstract class ConfigurationRepository {
   }
 
   /** Returns Subscription object with the given name if it exists */
-  private Optional<com.google.pubsub.v1.Subscription> getSubscriptionByName(
+  public final Optional<com.google.pubsub.v1.Subscription> getSubscriptionByName(
       String subscriptionName) {
     return subscriptionsByProject
         .values()
@@ -169,16 +181,19 @@ public abstract class ConfigurationRepository {
       throw new ConfigurationAlreadyExistsException(
           "Subscription " + projectSubscriptionName.toString() + " already exists");
     }
-    getTopicByName(projectTopicName.toString())
-        .orElseThrow(
-            () ->
-                new ConfigurationNotFoundException(
-                    "Topic " + projectTopicName.toString() + " does not exist"));
+    com.google.pubsub.v1.Topic topic =
+        getTopicByName(projectTopicName.toString())
+            .orElseThrow(
+                () ->
+                    new ConfigurationNotFoundException(
+                        "Topic " + projectTopicName.toString() + " does not exist"));
+    com.google.pubsub.v1.Subscription.Builder builder =
+        subscription.toBuilder().putLabels(KAFKA_TOPIC, topic.getLabelsOrThrow(KAFKA_TOPIC));
     if (subscription.getAckDeadlineSeconds() == 0) {
-      subscription = subscription.toBuilder().setAckDeadlineSeconds(10).build();
+      builder.setAckDeadlineSeconds(10).build();
     }
     subscriptionsByProject.put(
-        ProjectName.of(projectSubscriptionName.getProject()).toString(), subscription);
+        ProjectName.of(projectSubscriptionName.getProject()).toString(), builder.build());
   }
 
   /** Updates the managed Configuration when a Subscription is deleted. */
