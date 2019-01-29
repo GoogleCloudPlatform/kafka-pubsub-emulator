@@ -16,13 +16,33 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository;
 import com.google.pubsub.v1.Subscription;
-import java.util.concurrent.ScheduledExecutorService;
+import java.time.Clock;
+import javax.inject.Inject;
+import javax.inject.Singleton;
 
-interface SubscriptionManagerFactory {
+/**
+ * Factory for creating SubscriptionManagers.
+ */
+@Singleton
+class SubscriptionManagerFactory {
 
-  SubscriptionManager create(
-      Subscription subscription,
-      KafkaClientFactory clientFactory,
-      ScheduledExecutorService commitExecutor);
+  private final ConfigurationRepository configurationRepository;
+  private final KafkaClientFactory kafkaClientFactory;
+
+  @Inject
+  SubscriptionManagerFactory(
+      ConfigurationRepository configurationRepository, KafkaClientFactory kafkaClientFactory) {
+    this.configurationRepository = configurationRepository;
+    this.kafkaClientFactory = kafkaClientFactory;
+  }
+
+  public SubscriptionManager create(Subscription subscription) {
+    return new SubscriptionManager(
+        subscription,
+        kafkaClientFactory,
+        Clock.systemUTC(),
+        configurationRepository.getKafka().getConsumersPerSubscription());
+  }
 }

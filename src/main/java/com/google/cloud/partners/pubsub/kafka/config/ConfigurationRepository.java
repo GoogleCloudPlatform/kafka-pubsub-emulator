@@ -217,7 +217,7 @@ public abstract class ConfigurationRepository {
    * Generates and returns a new Configuration object based on the managed state in the repository.
    * Projects, Topics, and Subscriptions will all be added in sorted order by name
    */
-  final Configuration getConfiguration() {
+  public final Configuration getConfiguration() {
     Map<String, Project.Builder> projectMap = new HashMap<>();
     topicsByProject
         .values()

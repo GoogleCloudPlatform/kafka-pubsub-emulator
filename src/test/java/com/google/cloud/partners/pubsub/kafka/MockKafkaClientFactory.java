@@ -36,17 +36,17 @@ public class MockKafkaClientFactory implements KafkaClientFactory {
   private final Map<String, List<MockConsumer<String, ByteBuffer>>> createdConsumers;
   private final Map<String, MockConsumerConfiguration> consumerConfigurations;
 
-  public MockKafkaClientFactory() {
+  MockKafkaClientFactory() {
     createdProducers = new ArrayList<>();
     createdConsumers = new HashMap<>();
     consumerConfigurations = new HashMap<>();
   }
 
-  public List<MockProducer<String, ByteBuffer>> getCreatedProducers() {
+  List<MockProducer<String, ByteBuffer>> getCreatedProducers() {
     return createdProducers;
   }
 
-  public List<MockConsumer<String, ByteBuffer>> getConsumersForSubscription(String subscription) {
+  List<MockConsumer<String, ByteBuffer>> getConsumersForSubscription(String subscription) {
     return createdConsumers.get(subscription);
   }
 

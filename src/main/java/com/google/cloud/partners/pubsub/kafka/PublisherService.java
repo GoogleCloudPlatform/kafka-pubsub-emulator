@@ -19,7 +19,6 @@ package com.google.cloud.partners.pubsub.kafka;
 import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository;
 import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.ConfigurationAlreadyExistsException;
 import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.ConfigurationNotFoundException;
-import com.google.cloud.partners.pubsub.kafka.properties.ProducerProperties;
 import com.google.protobuf.Empty;
 import com.google.pubsub.v1.DeleteTopicRequest;
 import com.google.pubsub.v1.GetTopicRequest;
@@ -46,6 +45,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+import javax.inject.Inject;
+import javax.inject.Singleton;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.header.Headers;
@@ -56,10 +57,8 @@ import org.apache.kafka.common.header.internals.RecordHeaders;
  * Implementation of <a
  * href="https://cloud.google.com/pubsub/docs/reference/rpc/google.pubsub.v1#publisher"
  * target="_blank"> Cloud Pub/Sub Publisher API.</a>
- *
- * <p>Utilizes up to {@link ProducerProperties#getExecutors()} KafkaProducers to publish messages to
- * the Kafka topic indicated in a PublishRequest.
  */
+@Singleton
 class PublisherService extends PublisherImplBase {
 
   private static final Logger LOGGER = Logger.getLogger(PublisherService.class.getName());
@@ -70,6 +69,7 @@ class PublisherService extends PublisherImplBase {
   private final AtomicInteger nextProducerIndex;
   private final StatisticsManager statisticsManager;
 
+  @Inject
   PublisherService(
       ConfigurationRepository configurationRepository,
       KafkaClientFactory kafkaClientFactory,

@@ -7,6 +7,7 @@ import com.google.protobuf.util.JsonFormat;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import javax.inject.Singleton;
 
 /**
  * Implementation of {@link ConfigurationRepository} that expects to be provided with a File object
@@ -15,6 +16,7 @@ import java.nio.file.Files;
  *
  * <p>TODO: Support proto text format as well
  */
+@Singleton
 public class FileConfigurationRepository extends ConfigurationRepository {
 
   private final File file;

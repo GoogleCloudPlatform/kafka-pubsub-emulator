@@ -26,7 +26,6 @@ package google.pubsub.kafka.emulator;
 message Topic {
   string name = 1;
   string kafka_topic = 2;
-  // TODO: Add support for ack_deadline_seconds
   repeated Subscription subscriptions = 3;
 }
 
