@@ -18,8 +18,6 @@ package com.google.cloud.partners.pubsub.kafka;
 
 import static com.google.cloud.partners.pubsub.kafka.TestHelpers.generatePubsubMessages;
 import static com.google.cloud.partners.pubsub.kafka.TestHelpers.generatePubsubMessagesWithHeader;
-import static com.google.cloud.partners.pubsub.kafka.TestHelpers.setupRequestBindConfiguration;
-import static com.google.cloud.partners.pubsub.kafka.TestHelpers.useTestApplicationConfig;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -61,7 +59,6 @@ import org.apache.kafka.common.header.internals.RecordHeader;
 import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.hamcrest.Matchers;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -87,14 +84,8 @@ public class PublisherServiceTest {
 
   @Mock private StatisticsManager statisticsManager;
 
-  @BeforeClass
-  public static void setUpBeforeClass() {
-    useTestApplicationConfig(1, 1);
-  }
-
   @Before
   public void setUp() {
-    setupRequestBindConfiguration();
     kafkaClientFactory = new MockKafkaClientFactory();
     publisher =
         new PublisherService(
@@ -179,11 +170,11 @@ public class PublisherServiceTest {
         response.getTopicsList(),
         Matchers.contains(
             com.google.pubsub.v1.Topic.newBuilder()
-                .setName("projects/project-1/topics/topic-1")
+                .setName(TestHelpers.PROJECT1_TOPIC1)
                 .putLabels(KAFKA_TOPIC, "kafka-topic-1")
                 .build(),
             com.google.pubsub.v1.Topic.newBuilder()
-                .setName("projects/project-1/topics/topic-2")
+                .setName(TestHelpers.PROJECT1_TOPIC2)
                 .putLabels(KAFKA_TOPIC, "kafka-topic-2")
                 .build()));
   }
@@ -199,7 +190,7 @@ public class PublisherServiceTest {
         response.getTopicsList(),
         Matchers.contains(
             com.google.pubsub.v1.Topic.newBuilder()
-                .setName("projects/project-1/topics/topic-1")
+                .setName(TestHelpers.PROJECT1_TOPIC1)
                 .putLabels(KAFKA_TOPIC, "kafka-topic-1")
                 .build()));
     assertThat(response.getNextPageToken(), Matchers.not(Matchers.isEmptyOrNullString()));
@@ -237,7 +228,7 @@ public class PublisherServiceTest {
   public void listTopicSubscriptions_withPagination() {
     ListTopicSubscriptionsRequest request =
         ListTopicSubscriptionsRequest.newBuilder()
-            .setTopic("projects/project-1/topics/topic-2")
+            .setTopic(TestHelpers.PROJECT1_TOPIC2)
             .setPageSize(1)
             .build();
     ListTopicSubscriptionsResponse response = blockingStub.listTopicSubscriptions(request);

@@ -21,6 +21,7 @@ import static java.util.Objects.isNull;
 import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository;
 import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.ConfigurationAlreadyExistsException;
 import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.ConfigurationNotFoundException;
+import com.google.common.util.concurrent.AbstractExecutionThreadService;
 import com.google.protobuf.Empty;
 import com.google.pubsub.v1.AcknowledgeRequest;
 import com.google.pubsub.v1.DeleteSubscriptionRequest;
@@ -45,65 +46,48 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+import javax.inject.Inject;
+import javax.inject.Singleton;
 
 /**
  * Implementation of <a
  * href="https://cloud.google.com/pubsub/docs/reference/rpc/google.pubsub.v1#subscriber"
  * target="_blank"> Cloud Pub/Sub Publisher API.</a>
  */
+@Singleton
 class SubscriberService extends SubscriberImplBase {
 
   private static final Logger LOGGER = Logger.getLogger(SubscriberService.class.getName());
   private static final AtomicInteger STREAMING_PULL_ID = new AtomicInteger();
 
-  private final ScheduledExecutorService commitExecutorService;
-  private final ExecutorService streamingPullExecutorService;
   private final Map<String, SubscriptionManager> subscriptions;
   private final StatisticsManager statisticsManager;
   private final ConfigurationRepository configurationRepository;
   private final SubscriptionManagerFactory subscriptionManagerFactory;
-  private final KafkaClientFactory kafkaClientFactory;
 
+  @Inject
   SubscriberService(
       ConfigurationRepository configurationRepository,
-      KafkaClientFactory kafkaClientFactory,
       SubscriptionManagerFactory subscriptionManagerFactory,
       StatisticsManager statisticsManager) {
     this.configurationRepository = configurationRepository;
     this.statisticsManager = statisticsManager;
     this.subscriptionManagerFactory = subscriptionManagerFactory;
-    this.kafkaClientFactory = kafkaClientFactory;
-
-    commitExecutorService =
-        Executors.newScheduledThreadPool(
-            configurationRepository.getKafka().getConsumersPerSubscription(),
-            Utils.newThreadFactoryWithGroupAndPrefix(
-                "subscriber-commit-threads", "subscriber-committer"));
-    streamingPullExecutorService =
-        Executors.newCachedThreadPool(
-            Utils.newThreadFactoryWithGroupAndPrefix("streaming-pull-threads", "streaming-puller"));
 
     subscriptions =
-        configurationRepository
-            .getProjects()
-            .stream()
+        configurationRepository.getProjects().stream()
             .flatMap(p -> configurationRepository.getSubscriptions(p).stream())
             .collect(
                 Collectors.toConcurrentMap(
                     Subscription::getName,
-                    s ->
-                        subscriptionManagerFactory.create(
-                            s, kafkaClientFactory, commitExecutorService)));
+                    subscription -> {
+                      SubscriptionManager sm = subscriptionManagerFactory.create(subscription);
+                      sm.startAsync();
+                      return sm;
+                    }));
     LOGGER.info("Created " + subscriptions.size() + " SubscriptionManagers");
   }
 
@@ -113,8 +97,7 @@ class SubscriberService extends SubscriberImplBase {
    * KafkaConsumers.
    */
   public void shutdown() {
-    commitExecutorService.shutdown();
-    subscriptions.values().forEach(SubscriptionManager::shutdown);
+    subscriptions.values().forEach(sm -> sm.stopAsync().awaitTerminated());
   }
 
   @Override
@@ -122,10 +105,8 @@ class SubscriberService extends SubscriberImplBase {
       Subscription request, StreamObserver<Subscription> responseObserver) {
     try {
       configurationRepository.createSubscription(request);
-      subscriptions.put(
-          request.getName(),
-          subscriptionManagerFactory.create(request, kafkaClientFactory, commitExecutorService));
-      // statisticsManager.addSubscriberInformation(subscriptionProperties);
+      subscriptions.put(request.getName(), subscriptionManagerFactory.create(request));
+      statisticsManager.addSubscriberInformation(request);
       responseObserver.onNext(request);
       responseObserver.onCompleted();
     } catch (ConfigurationAlreadyExistsException e) {
@@ -140,13 +121,7 @@ class SubscriberService extends SubscriberImplBase {
       DeleteSubscriptionRequest request, StreamObserver<Empty> responseObserver) {
     try {
       configurationRepository.deleteSubscription(request.getSubscription());
-      //      // verify if not contains anymore topic remove subscriber information from statistics.
-      //      if (!kafkaProperties.getTopics().contains(topic)) {
-      //        statisticsManager.removeSubscriberInformation(topic);
-      //      }
-
-      // remove from subscriptions map
-      subscriptions.get(request.getSubscription()).shutdown();
+      subscriptions.get(request.getSubscription()).stopAsync().awaitTerminated();
       subscriptions.remove(request.getSubscription());
       responseObserver.onNext(Empty.newBuilder().build());
       responseObserver.onCompleted();
@@ -199,6 +174,7 @@ class SubscriberService extends SubscriberImplBase {
           PullResponse.newBuilder()
               .addAllReceivedMessages(
                   buildReceivedMessageList(
+                      request.getSubscription(),
                       subscriptionManager.pull(
                           request.getMaxMessages(), request.getReturnImmediately())))
               .build();
@@ -247,15 +223,15 @@ class SubscriberService extends SubscriberImplBase {
     return new StreamingPullStreamObserver(responseObserver);
   }
 
-  private List<ReceivedMessage> buildReceivedMessageList(List<PubsubMessage> pubsubMessages) {
-    // TODO: Add stats collection
-    // statisticsManager.computeSubscriber(
-    //                                    subscription,
-    //                                    receivedMessage.getMessage().getData(),
-    //                                    receivedMessage.getMessage().getPublishTime());
-    return pubsubMessages
-        .stream()
-        .map(m -> ReceivedMessage.newBuilder().setAckId(m.getMessageId()).setMessage(m).build())
+  private List<ReceivedMessage> buildReceivedMessageList(
+      String subscriptionName, List<PubsubMessage> pubsubMessages) {
+    return pubsubMessages.stream()
+        .map(
+            m -> {
+              statisticsManager.computeSubscriber(
+                  subscriptionName, m.getData(), m.getPublishTime());
+              return ReceivedMessage.newBuilder().setAckId(m.getMessageId()).setMessage(m).build();
+            })
         .collect(Collectors.toList());
   }
 
@@ -263,13 +239,13 @@ class SubscriberService extends SubscriberImplBase {
    * Implementation of the Subscriber StreamingPull bidi streaming method. Modeled after the
    * implementation found in the Cloud Pub/Sub emulator available in the gcloud CLI tool.
    */
-  private final class StreamingPullStreamObserver implements StreamObserver<StreamingPullRequest> {
+  private final class StreamingPullStreamObserver extends AbstractExecutionThreadService
+      implements StreamObserver<StreamingPullRequest> {
 
     private static final int MESSAGES_PER_STREAM = 500;
     private static final int MIN_POLL_INTERVAL = 1;
     private static final int MAX_POLL_INTERVAL = 2048;
 
-    private final CompletableFuture<Void> terminationFuture;
     private final ServerCallStreamObserver<StreamingPullResponse> responseObserver;
     private int streamAckDeadlineSecs;
     private String streamId;
@@ -280,8 +256,6 @@ class SubscriberService extends SubscriberImplBase {
       this.responseObserver = (ServerCallStreamObserver<StreamingPullResponse>) responseObserver;
       this.responseObserver.disableAutoInboundFlowControl();
 
-      terminationFuture = new CompletableFuture<>();
-
       this.responseObserver.setOnReadyHandler(
           () -> {
             if (isNull(subscriptionManager)) {
@@ -291,7 +265,7 @@ class SubscriberService extends SubscriberImplBase {
       this.responseObserver.setOnCancelHandler(
           () -> {
             LOGGER.info("Client cancelled StreamingPull " + streamId);
-            terminationFuture.complete(null);
+            stopIfRunning();
           });
     }
 
@@ -303,7 +277,7 @@ class SubscriberService extends SubscriberImplBase {
         processModifyAckDeadlines(request);
         responseObserver.request(1);
       } catch (StatusException e) {
-        terminationFuture.completeExceptionally(e);
+        stopIfRunning();
         responseObserver.onError(Status.fromThrowable(e).asException());
       }
     }
@@ -313,18 +287,21 @@ class SubscriberService extends SubscriberImplBase {
       // This doesn't seem to occur given that the standard client uses a cancel message onError
       if (!Status.fromThrowable(throwable).getCode().equals(Status.CANCELLED.getCode())) {
         LOGGER.warning(
-            "Client encountered error during StreamingPull "
-                + streamId
-                + ": "
-                + throwable.getMessage());
-        terminationFuture.completeExceptionally(throwable);
+            String.format(
+                "Client encountered error during StreamingPull %s: %s",
+                streamId, throwable.getMessage()));
+        stopIfRunning();
       }
     }
 
     @Override
     public void onCompleted() {
-      LOGGER.info("StreamingPull " + streamId + " closed by client");
-      terminationFuture.complete(null);
+      LOGGER.info(
+          subscriptionManager.getSubscription().getName()
+              + " StreamingPull "
+              + streamId
+              + " closed by client");
+      stopIfRunning();
       responseObserver.onCompleted();
     }
 
@@ -355,9 +332,11 @@ class SubscriberService extends SubscriberImplBase {
                   subscriptionManager.getSubscription().getAckDeadlineSeconds()));
           streamAckDeadlineSecs = subscriptionManager.getSubscription().getAckDeadlineSeconds();
         }
-        LOGGER.info("StreamingPull " + streamId + " initialized by client");
-        streamingPullExecutorService.submit(() -> this.streamMessages(request.getSubscription()));
-
+        LOGGER.info(
+            String.format(
+                "%s StreamingPull %s initialized by client",
+                subscriptionManager.getSubscription().getName(), streamId));
+        startAsync().awaitRunning();
       } else if (!request.getSubscription().isEmpty()) {
         String message = "Subscription name can only be specified in first request";
         LOGGER.warning(message);
@@ -374,13 +353,12 @@ class SubscriberService extends SubscriberImplBase {
       if (request.getAckIdsCount() > 0) {
         List<String> ackIds = subscriptionManager.acknowledge(request.getAckIdsList());
         LOGGER.fine(
-            "StreamingPull "
-                + streamId
-                + " successfully acknowledged "
-                + ackIds.size()
-                + " of "
-                + request.getAckIdsCount()
-                + " messages");
+            String.format(
+                "%s StreamingPull %s successfully acknowledged %d of %d messages",
+                subscriptionManager.getSubscription().getName(),
+                streamId,
+                ackIds.size(),
+                request.getAckIdsCount()));
       }
     }
 
@@ -395,11 +373,9 @@ class SubscriberService extends SubscriberImplBase {
           && request.getModifyDeadlineSecondsCount() > 0) {
         if (request.getModifyDeadlineAckIdsCount() != request.getModifyDeadlineSecondsCount()) {
           String message =
-              "Request contained "
-                  + request.getModifyDeadlineAckIdsCount()
-                  + " modifyAckDeadlineIds but "
-                  + request.getModifyDeadlineSecondsCount()
-                  + " modifyDeadlineSeconds";
+              String.format(
+                  "Request contained %d modifyAckDeadlineIds but %d modifyDeadlineSeconds",
+                  request.getModifyDeadlineAckIdsCount(), request.getModifyDeadlineSecondsCount());
           LOGGER.warning(message);
           throw Status.INVALID_ARGUMENT.withDescription(message).asException();
         }
@@ -412,27 +388,26 @@ class SubscriberService extends SubscriberImplBase {
                   request.getModifyDeadlineSeconds(i)));
         }
         LOGGER.fine(
-            "StreamingPull "
-                + streamId
-                + " successfully modified ack deadlines for "
-                + modifiedAckIds.size()
-                + " messages");
+            String.format(
+                "%s StreamingPull %s modified ack deadlines for %d of %d messages",
+                subscriptionManager.getSubscription().getName(),
+                streamId,
+                modifiedAckIds.size(),
+                request.getAckIdsCount()));
       }
     }
 
-    /**
-     * Poll in a loop until messages are available from the {@link SubscriptionManager} or the
-     * stream is terminated by the client.
-     */
-    private void streamMessages(String subscription) {
+    @Override
+    protected void run() {
       int pollDelay = MIN_POLL_INTERVAL;
-      while (!(terminationFuture.isDone())) {
+      while (isRunning()) {
         if (responseObserver.isReady()) {
           pollDelay = MIN_POLL_INTERVAL;
           StreamingPullResponse response =
               StreamingPullResponse.newBuilder()
                   .addAllReceivedMessages(
                       buildReceivedMessageList(
+                          subscriptionManager.getSubscription().getName(),
                           subscriptionManager.pull(
                               MESSAGES_PER_STREAM, true, streamAckDeadlineSecs)))
                   .build();
@@ -449,22 +424,26 @@ class SubscriberService extends SubscriberImplBase {
         } else {
           pollDelay = Math.min(pollDelay * 2, MAX_POLL_INTERVAL);
           LOGGER.fine(
-              "StreamingPull "
-                  + streamId
-                  + " peer is not ready, increased pollDelay to "
-                  + pollDelay);
+              String.format(
+                  "StreamingPull %s peer is not ready, increased pollDelay to %d",
+                  streamId, pollDelay));
         }
-        // Block on the termination future, but swallow its TimeoutException
         try {
-          terminationFuture.get(pollDelay, TimeUnit.MILLISECONDS);
-        } catch (InterruptedException | TimeoutException ignored) {
-        } catch (ExecutionException e) {
-          LOGGER.severe("StreamingPull " + streamId + " encountered unrecoverable error " + e);
+          Thread.sleep(pollDelay);
+        } catch (InterruptedException e) {
+          stopAsync();
+          LOGGER.severe(
+              String.format(
+                  "%s StreamingPull %s encountered unrecoverable error %s",
+                  subscriptionManager.getSubscription().getName(), streamId, e));
           responseObserver.onError(Status.fromThrowable(e).asException());
         }
       }
-      if (!isNull(subscriptionManager)) {
-        subscriptionManager.commitFromAcknowledgments();
+    }
+
+    private void stopIfRunning() {
+      if (isRunning()) {
+        stopAsync();
       }
     }
   }

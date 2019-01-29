@@ -16,16 +16,7 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
-import static com.google.cloud.partners.pubsub.kafka.enums.MetricProperty.AVG_LATENCY;
-import static com.google.cloud.partners.pubsub.kafka.enums.MetricProperty.ERROR_RATE;
-import static com.google.cloud.partners.pubsub.kafka.enums.MetricProperty.MESSAGE_COUNT;
-import static com.google.cloud.partners.pubsub.kafka.enums.MetricProperty.QPS;
-import static com.google.cloud.partners.pubsub.kafka.enums.MetricProperty.THROUGHPUT;
-import static java.lang.Float.parseFloat;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Mockito.when;
 
 import com.google.cloud.partners.pubsub.kafka.common.AdminGrpc;
@@ -37,12 +28,19 @@ import com.google.cloud.partners.pubsub.kafka.common.Metric;
 import com.google.cloud.partners.pubsub.kafka.common.StatisticsConsolidation;
 import com.google.cloud.partners.pubsub.kafka.common.StatisticsRequest;
 import com.google.cloud.partners.pubsub.kafka.common.StatisticsResponse;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository;
+import com.google.cloud.partners.pubsub.kafka.config.FakeConfigurationRepository;
+import com.google.common.collect.ImmutableMap;
+import com.google.protobuf.TextFormat;
+import com.google.protobuf.TextFormat.ParseException;
 import io.grpc.testing.GrpcServerRule;
-import java.util.HashMap;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.hamcrest.Matchers;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -52,128 +50,54 @@ import org.mockito.junit.MockitoJUnitRunner;
 @RunWith(MockitoJUnitRunner.class)
 public class AdminServiceTest {
 
-  private static final String TEST_TOPIC_1 = "test-topic-1";
-  private static final String TEST_TOPIC_2 = "test-topic-2";
-
-  private static final int EXECUTOR_PRODUCER = 1;
-
-  private static final int EXECUTOR_SUBSCRIBER = 1;
   @Rule public final GrpcServerRule grpcServerRule = new GrpcServerRule().directExecutor();
-  private AdminBlockingStub blockingStub;
-  @Mock private StatisticsManager statisticsManager;
 
-  @BeforeClass
-  public static void setUpBeforeClass() {
-    TestHelpers.useTestApplicationConfig(EXECUTOR_PRODUCER, EXECUTOR_SUBSCRIBER);
-  }
+  private AdminBlockingStub blockingStub;
+  private ConfigurationRepository configurationRepository = new FakeConfigurationRepository();
+  private Clock clock = Clock.fixed(Instant.ofEpochSecond(1546300800), ZoneId.systemDefault());
+  @Mock private StatisticsManager statisticsManager;
 
   @Before
   public void setUp() {
-    AdminService admin = new AdminService(statisticsManager);
+    AdminService admin = new AdminService(configurationRepository, clock, statisticsManager);
     grpcServerRule.getServiceRegistry().addService(admin);
     blockingStub = AdminGrpc.newBlockingStub(grpcServerRule.getChannel());
   }
 
   @Test
-  public void statistics() throws Exception {
-
-    when(statisticsManager.getPublishInformationByTopic()).thenReturn(givenPublishInformation());
-
+  public void statistics() throws ParseException {
+    when(statisticsManager.getPublishInformationByTopic())
+        .thenReturn(
+            ImmutableMap.of(
+                TestHelpers.PROJECT1_TOPIC1,
+                givenStatisticsInformation(1, 10L, 55L, 500L, 59L, 19L, 10L, 11L, 1L, 91L, 5L),
+                TestHelpers.PROJECT1_TOPIC2,
+                givenStatisticsInformation(0, 90L, 90L),
+                TestHelpers.PROJECT2_TOPIC1,
+                givenStatisticsInformation(1, 10L, 55L, 500L, 59L, 19L, 10L, 11L, 1L, 91L, 5L),
+                TestHelpers.PROJECT2_TOPIC2,
+                givenStatisticsInformation(0, 90L, 90L)));
     when(statisticsManager.getSubscriberInformationByTopic())
-        .thenReturn(givenSubscriberInformation());
-
-    Thread.sleep(5000L);
+        .thenReturn(
+            new ImmutableMap.Builder<String, StatisticsInformation>()
+                .put(TestHelpers.PROJECT1_TOPIC1, givenStatisticsInformation(0, 200L, 50L, 100L))
+                .put(TestHelpers.PROJECT1_TOPIC2, new StatisticsInformation())
+                .put(TestHelpers.PROJECT2_TOPIC1, givenStatisticsInformation(0, 200L, 50L, 100L))
+                .put(TestHelpers.PROJECT2_TOPIC2, new StatisticsInformation())
+                .build());
 
     StatisticsResponse statisticsResponse =
         blockingStub.statistics(StatisticsRequest.newBuilder().build());
-
-    assertEquals(EXECUTOR_SUBSCRIBER, statisticsResponse.getSubscriberExecutors());
-    assertEquals(EXECUTOR_PRODUCER, statisticsResponse.getPublisherExecutors());
-
-    float deltaForLatency = 10F;
-    float deltaForThroughput = 100F;
-    float deltaForQPS = 1F;
-    int noDelta = 0;
-
-    // assert information for publisher of topic 1
-    Map<String, String> publisherMetricsForTopic1 =
-        convertToMetricMap(statisticsResponse.getPublisherByTopicMap().get(TEST_TOPIC_1));
-    assertEquals(10, Integer.parseInt(publisherMetricsForTopic1.get(MESSAGE_COUNT.getName())));
-    assertEquals(
-        76.1F, parseFloat(publisherMetricsForTopic1.get(AVG_LATENCY.getName())), deltaForLatency);
-    assertEquals(
-        10000.0F,
-        parseFloat(publisherMetricsForTopic1.get(THROUGHPUT.getName())),
-        deltaForThroughput);
-    assertEquals(2.0F, parseFloat(publisherMetricsForTopic1.get(QPS.getName())), deltaForQPS);
-    assertEquals(9.09F, parseFloat(publisherMetricsForTopic1.get(ERROR_RATE.getName())), noDelta);
-
-    // assert information for publisher of topic 2
-    Map<String, String> publisherMetricsForTopic2 =
-        convertToMetricMap(statisticsResponse.getPublisherByTopicMap().get(TEST_TOPIC_2));
-
-    assertEquals(2, Integer.parseInt(publisherMetricsForTopic2.get(MESSAGE_COUNT.getName())));
-    assertEquals(
-        90F, parseFloat(publisherMetricsForTopic2.get(AVG_LATENCY.getName())), deltaForLatency);
-    assertEquals(
-        2000F, parseFloat(publisherMetricsForTopic2.get(THROUGHPUT.getName())), deltaForThroughput);
-    assertEquals(0.4F, parseFloat(publisherMetricsForTopic2.get(QPS.getName())), deltaForQPS);
-    assertEquals(0F, parseFloat(publisherMetricsForTopic2.get(ERROR_RATE.getName())), noDelta);
-
-    // assert information for subscriber of topic 1
-    Map<String, String> subscriberMetricsForTopic1 =
-        convertToMetricMap(statisticsResponse.getSubscriberByTopicMap().get(TEST_TOPIC_1));
-
-    assertEquals(3, Integer.parseInt(subscriberMetricsForTopic1.get(MESSAGE_COUNT.getName())));
-    assertEquals(
-        125.0F, parseFloat(subscriberMetricsForTopic1.get(AVG_LATENCY.getName())), deltaForLatency);
-    assertEquals(
-        3000.0F,
-        parseFloat(subscriberMetricsForTopic1.get(THROUGHPUT.getName())),
-        deltaForThroughput);
-    assertEquals(0.6F, parseFloat(subscriberMetricsForTopic1.get(QPS.getName())), deltaForQPS);
-    assertNull(subscriberMetricsForTopic1.get(ERROR_RATE.getName()));
-
-    // assert information for subscriber of topic 2 (with no compute information)
-    Map<String, String> subscriberMetricsForTopic2 =
-        convertToMetricMap(statisticsResponse.getSubscriberByTopicMap().get(TEST_TOPIC_2));
-
-    assertEquals(0, Integer.parseInt(subscriberMetricsForTopic2.get(MESSAGE_COUNT.getName())));
-    assertEquals(0.00F, parseFloat(subscriberMetricsForTopic2.get(AVG_LATENCY.getName())), noDelta);
-    assertEquals(0.00F, parseFloat(subscriberMetricsForTopic2.get(THROUGHPUT.getName())), noDelta);
-    assertEquals(0.00F, parseFloat(subscriberMetricsForTopic2.get(QPS.getName())), noDelta);
-    assertNull(subscriberMetricsForTopic2.get(ERROR_RATE.getName()));
+    assertThat(statisticsResponse, Matchers.equalTo(getExpectedResponse()));
   }
 
   @Test
   public void configuration() {
-
     ConfigurationResponse configurationResponse =
         blockingStub.configuration(ConfigurationRequest.newBuilder().build());
 
-    assertEquals(Extension.YAML, configurationResponse.getExtension());
-    assertFalse(configurationResponse.getContent().isEmpty());
-    // Verify if file container some properties.
-    assertTrue(configurationResponse.getContent().contains("kafka:"));
-    assertTrue(configurationResponse.getContent().contains("server:"));
-    assertTrue(configurationResponse.getContent().contains("producer:"));
-    assertTrue(configurationResponse.getContent().contains("consumer:"));
-  }
-
-  private Map<String, StatisticsInformation> givenSubscriberInformation() {
-    Map<String, StatisticsInformation> map = new HashMap<>();
-    map.put(TEST_TOPIC_1, givenStatisticsInformation(0, 200L, 50L, 100L));
-    map.put(TEST_TOPIC_2, new StatisticsInformation());
-    return map;
-  }
-
-  private Map<String, StatisticsInformation> givenPublishInformation() {
-    Map<String, StatisticsInformation> map = new HashMap<>();
-    map.put(
-        TEST_TOPIC_1,
-        givenStatisticsInformation(1, 10L, 55L, 500L, 59L, 19L, 10L, 11L, 1L, 91L, 5L));
-    map.put(TEST_TOPIC_2, givenStatisticsInformation(0, 90L, 90L));
-    return map;
+    assertThat(configurationResponse.getExtension(), Matchers.equalTo(Extension.JSON));
+    assertThat(configurationResponse.getContent(), Matchers.equalTo(TestHelpers.CONFIG));
   }
 
   private StatisticsInformation givenStatisticsInformation(int errors, long... latencies) {
@@ -187,10 +111,233 @@ public class AdminServiceTest {
     return information;
   }
 
-  private Map<String, String> convertToMetricMap(StatisticsConsolidation consolidation) {
-    return consolidation
-        .getMetricsList()
-        .stream()
-        .collect(Collectors.toMap(Metric::getName, Metric::getValue));
+  private StatisticsResponse getExpectedResponse() throws ParseException {
+    StatisticsResponse.Builder builder = StatisticsResponse.newBuilder();
+    TextFormat.getParser()
+        .merge(
+            "publisherExecutors: 4\n"
+                + "subscriberExecutors: 4\n"
+                + "publisherByTopic {\n"
+                + "  key: \"projects/project-2/topics/topic-1\"\n"
+                + "  value {\n"
+                + "    metrics {\n"
+                + "      name: \"message_count\"\n"
+                + "      description: \"Count of messages processed by emulator.\"\n"
+                + "      value: \"10\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"throughput\"\n"
+                + "      description: \"Throughput in bytes per second\"\n"
+                + "      value: \"0.02\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"average_latency\"\n"
+                + "      description: \"Average latency per request in milliseconds.\"\n"
+                + "      value: \"76.10\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"qps\"\n"
+                + "      description: \"QPS.\"\n"
+                + "      value: \"0.00\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"error_rate\"\n"
+                + "      description: \"Percentage of requests resulting in errors.\"\n"
+                + "      value: \"9.09\"\n"
+                + "    }\n"
+                + "  }\n"
+                + "}\n"
+                + "publisherByTopic {\n"
+                + "  key: \"projects/project-2/topics/topic-2\"\n"
+                + "  value {\n"
+                + "    metrics {\n"
+                + "      name: \"message_count\"\n"
+                + "      description: \"Count of messages processed by emulator.\"\n"
+                + "      value: \"2\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"throughput\"\n"
+                + "      description: \"Throughput in bytes per second\"\n"
+                + "      value: \"0.00\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"average_latency\"\n"
+                + "      description: \"Average latency per request in milliseconds.\"\n"
+                + "      value: \"90.00\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"qps\"\n"
+                + "      description: \"QPS.\"\n"
+                + "      value: \"0.00\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"error_rate\"\n"
+                + "      description: \"Percentage of requests resulting in errors.\"\n"
+                + "      value: \"0.00\"\n"
+                + "    }\n"
+                + "  }\n"
+                + "}\n"
+                + "publisherByTopic {\n"
+                + "  key: \"projects/project-1/topics/topic-1\"\n"
+                + "  value {\n"
+                + "    metrics {\n"
+                + "      name: \"message_count\"\n"
+                + "      description: \"Count of messages processed by emulator.\"\n"
+                + "      value: \"10\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"throughput\"\n"
+                + "      description: \"Throughput in bytes per second\"\n"
+                + "      value: \"0.02\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"average_latency\"\n"
+                + "      description: \"Average latency per request in milliseconds.\"\n"
+                + "      value: \"76.10\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"qps\"\n"
+                + "      description: \"QPS.\"\n"
+                + "      value: \"0.00\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"error_rate\"\n"
+                + "      description: \"Percentage of requests resulting in errors.\"\n"
+                + "      value: \"9.09\"\n"
+                + "    }\n"
+                + "  }\n"
+                + "}\n"
+                + "publisherByTopic {\n"
+                + "  key: \"projects/project-1/topics/topic-2\"\n"
+                + "  value {\n"
+                + "    metrics {\n"
+                + "      name: \"message_count\"\n"
+                + "      description: \"Count of messages processed by emulator.\"\n"
+                + "      value: \"2\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"throughput\"\n"
+                + "      description: \"Throughput in bytes per second\"\n"
+                + "      value: \"0.00\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"average_latency\"\n"
+                + "      description: \"Average latency per request in milliseconds.\"\n"
+                + "      value: \"90.00\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"qps\"\n"
+                + "      description: \"QPS.\"\n"
+                + "      value: \"0.00\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"error_rate\"\n"
+                + "      description: \"Percentage of requests resulting in errors.\"\n"
+                + "      value: \"0.00\"\n"
+                + "    }\n"
+                + "  }\n"
+                + "}\n"
+                + "subscriberByTopic {\n"
+                + "  key: \"projects/project-2/topics/topic-1\"\n"
+                + "  value {\n"
+                + "    metrics {\n"
+                + "      name: \"message_count\"\n"
+                + "      description: \"Count of messages processed by emulator.\"\n"
+                + "      value: \"3\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"throughput\"\n"
+                + "      description: \"Throughput in bytes per second\"\n"
+                + "      value: \"0.01\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"average_latency\"\n"
+                + "      description: \"Average latency per request in milliseconds.\"\n"
+                + "      value: \"116.67\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"qps\"\n"
+                + "      description: \"QPS.\"\n"
+                + "      value: \"0.00\"\n"
+                + "    }\n"
+                + "  }\n"
+                + "}\n"
+                + "subscriberByTopic {\n"
+                + "  key: \"projects/project-2/topics/topic-2\"\n"
+                + "  value {\n"
+                + "    metrics {\n"
+                + "      name: \"message_count\"\n"
+                + "      description: \"Count of messages processed by emulator.\"\n"
+                + "      value: \"0\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"throughput\"\n"
+                + "      description: \"Throughput in bytes per second\"\n"
+                + "      value: \"0.00\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"average_latency\"\n"
+                + "      description: \"Average latency per request in milliseconds.\"\n"
+                + "      value: \"0.00\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"qps\"\n"
+                + "      description: \"QPS.\"\n"
+                + "      value: \"0.00\"\n"
+                + "    }\n"
+                + "  }\n"
+                + "}\n"
+                + "subscriberByTopic {\n"
+                + "  key: \"projects/project-1/topics/topic-1\"\n"
+                + "  value {\n"
+                + "    metrics {\n"
+                + "      name: \"message_count\"\n"
+                + "      description: \"Count of messages processed by emulator.\"\n"
+                + "      value: \"3\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"throughput\"\n"
+                + "      description: \"Throughput in bytes per second\"\n"
+                + "      value: \"0.01\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"average_latency\"\n"
+                + "      description: \"Average latency per request in milliseconds.\"\n"
+                + "      value: \"116.67\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"qps\"\n"
+                + "      description: \"QPS.\"\n"
+                + "      value: \"0.00\"\n"
+                + "    }\n"
+                + "  }\n"
+                + "}\n"
+                + "subscriberByTopic {\n"
+                + "  key: \"projects/project-1/topics/topic-2\"\n"
+                + "  value {\n"
+                + "    metrics {\n"
+                + "      name: \"message_count\"\n"
+                + "      description: \"Count of messages processed by emulator.\"\n"
+                + "      value: \"0\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"throughput\"\n"
+                + "      description: \"Throughput in bytes per second\"\n"
+                + "      value: \"0.00\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"average_latency\"\n"
+                + "      description: \"Average latency per request in milliseconds.\"\n"
+                + "      value: \"0.00\"\n"
+                + "    }\n"
+                + "    metrics {\n"
+                + "      name: \"qps\"\n"
+                + "      description: \"QPS.\"\n"
+                + "      value: \"0.00\"\n"
+                + "    }\n"
+                + "  }\n"
+                + "}",
+            builder);
+    return builder.build();
   }
 }

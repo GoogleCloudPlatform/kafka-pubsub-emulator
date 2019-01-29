@@ -4,6 +4,7 @@ import static com.google.cloud.partners.pubsub.kafka.config.ConfigurationReposit
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.MatcherAssert.assertThat;
 
+import com.google.cloud.partners.pubsub.kafka.TestHelpers;
 import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.ConfigurationAlreadyExistsException;
 import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.ConfigurationNotFoundException;
 import com.google.pubsub.v1.Subscription;
@@ -18,82 +19,13 @@ import org.junit.rules.TemporaryFolder;
 
 public class FileConfigurationRepositoryTest {
 
-  private static final String CONFIG =
-      "{\n"
-          + "  \"server\": {\n"
-          + "    \"port\": 8080,\n"
-          + "    \"security\": {\n"
-          + "      \"certificateChainFile\": \"/path/to/server.crt\",\n"
-          + "      \"privateKeyFile\": \"/path/to/server.key\"\n"
-          + "    }\n"
-          + "  },\n"
-          + "  \"kafka\": {\n"
-          + "    \"bootstrapServers\": [\"server1:2192\", \"server2:2192\"],\n"
-          + "    \"producerProperties\": {\n"
-          + "      \"max.poll.records\": \"1000\"\n"
-          + "    },\n"
-          + "    \"producerExecutors\": 4,\n"
-          + "    \"consumerProperties\": {\n"
-          + "      \"linger.ms\": \"5\",\n"
-          + "      \"batch.size\": \"1000000\",\n"
-          + "      \"buffer.memory\": \"32000000\"\n"
-          + "    },\n"
-          + "    \"consumersPerSubscription\": 4\n"
-          + "  },\n"
-          + "  \"pubsub\": {\n"
-          + "    \"projects\": [{\n"
-          + "      \"name\": \"project-1\",\n"
-          + "      \"topics\": [{\n"
-          + "        \"name\": \"topic-1\",\n"
-          + "        \"kafkaTopic\": \"kafka-topic-1\",\n"
-          + "        \"subscriptions\": [{\n"
-          + "          \"name\": \"subscription-1\",\n"
-          + "          \"ackDeadlineSeconds\": 10\n"
-          + "        }, {\n"
-          + "          \"name\": \"subscription-2\",\n"
-          + "          \"ackDeadlineSeconds\": 10\n"
-          + "        }]\n"
-          + "      }, {\n"
-          + "        \"name\": \"topic-2\",\n"
-          + "        \"kafkaTopic\": \"kafka-topic-2\",\n"
-          + "        \"subscriptions\": [{\n"
-          + "          \"name\": \"subscription-3\",\n"
-          + "          \"ackDeadlineSeconds\": 30\n"
-          + "        }, {\n"
-          + "          \"name\": \"subscription-4\",\n"
-          + "          \"ackDeadlineSeconds\": 45\n"
-          + "        }]\n"
-          + "      }]\n"
-          + "    }, {\n"
-          + "      \"name\": \"project-2\",\n"
-          + "      \"topics\": [{\n"
-          + "        \"name\": \"topic-1\",\n"
-          + "        \"kafkaTopic\": \"kafka-topic-1\",\n"
-          + "        \"subscriptions\": [{\n"
-          + "          \"name\": \"subscription-1\",\n"
-          + "          \"ackDeadlineSeconds\": 10\n"
-          + "        }, {\n"
-          + "          \"name\": \"subscription-2\",\n"
-          + "          \"ackDeadlineSeconds\": 10\n"
-          + "        }]\n"
-          + "      }, {\n"
-          + "        \"name\": \"topic-2\",\n"
-          + "        \"kafkaTopic\": \"kafka-topic-2\",\n"
-          + "        \"subscriptions\": [{\n"
-          + "          \"name\": \"subscription-3\",\n"
-          + "          \"ackDeadlineSeconds\": 30\n"
-          + "        }]\n"
-          + "      }]\n"
-          + "    }]\n"
-          + "  }\n"
-          + "}";
   @Rule public TemporaryFolder temporaryFolder = new TemporaryFolder();
   @Rule public ExpectedException expectedException = ExpectedException.none();
 
   @Test
   public void load() throws IOException {
     File file = temporaryFolder.newFile();
-    Files.write(file.toPath(), CONFIG.getBytes(UTF_8));
+    Files.write(file.toPath(), TestHelpers.CONFIG.getBytes(UTF_8));
 
     ConfigurationRepository configurationRepository = FileConfigurationRepository.create(file);
     assertThat(configurationRepository.getTopics("projects/project-1"), Matchers.hasSize(2));
@@ -132,7 +64,7 @@ public class FileConfigurationRepositoryTest {
   @Test
   public void save() throws IOException {
     File file = temporaryFolder.newFile();
-    Files.write(file.toPath(), CONFIG.getBytes(UTF_8));
+    Files.write(file.toPath(), TestHelpers.CONFIG.getBytes(UTF_8));
 
     ConfigurationRepository configurationRepository = FileConfigurationRepository.create(file);
 
@@ -141,14 +73,14 @@ public class FileConfigurationRepositoryTest {
 
     configurationRepository.save();
     String content = String.join("\n", Files.readAllLines(file.toPath(), UTF_8));
-    assertThat(content, Matchers.equalTo(CONFIG));
+    assertThat(content, Matchers.equalTo(TestHelpers.CONFIG));
   }
 
   @Test
   public void save_afterChanges()
       throws IOException, ConfigurationAlreadyExistsException, ConfigurationNotFoundException {
     File file = temporaryFolder.newFile();
-    Files.write(file.toPath(), CONFIG.getBytes(UTF_8));
+    Files.write(file.toPath(), TestHelpers.CONFIG.getBytes(UTF_8));
 
     ConfigurationRepository configurationRepository = FileConfigurationRepository.create(file);
 
@@ -253,7 +185,7 @@ public class FileConfigurationRepositoryTest {
   @Test
   public void save_fileIsReadOnly() throws IOException {
     File file = temporaryFolder.newFile();
-    Files.write(file.toPath(), CONFIG.getBytes(UTF_8));
+    Files.write(file.toPath(), TestHelpers.CONFIG.getBytes(UTF_8));
     file.setWritable(false);
 
     ConfigurationRepository configurationRepository = FileConfigurationRepository.create(file);

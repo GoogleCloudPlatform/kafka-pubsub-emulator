@@ -18,10 +18,9 @@ package com.google.cloud.partners.pubsub.kafka;
 
 import static com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.KAFKA_TOPIC;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.eq;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -34,6 +33,7 @@ import com.google.cloud.partners.pubsub.kafka.config.PubSub;
 import com.google.cloud.partners.pubsub.kafka.config.Server;
 import com.google.cloud.partners.pubsub.kafka.config.Topic;
 import com.google.common.collect.ImmutableList;
+import com.google.common.util.concurrent.Service;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import com.google.pubsub.v1.AcknowledgeRequest;
@@ -55,17 +55,18 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import io.grpc.testing.GrpcServerRule;
+import java.nio.ByteBuffer;
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
-import org.apache.zookeeper.data.Stat;
+import org.apache.kafka.clients.consumer.Consumer;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Rule;
@@ -73,9 +74,7 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.MockitoJUnitRunner;
-import org.mockito.stubbing.Answer;
 
 @RunWith(MockitoJUnitRunner.class)
 public class SubscriberServiceTest {
@@ -85,7 +84,6 @@ public class SubscriberServiceTest {
 
   private SubscriberGrpc.SubscriberBlockingStub blockingStub;
   private SubscriberService subscriber;
-  private CountDownLatch streamingPullCommitLatch;
 
   private ConfigurationRepository configurationRepository;
 
@@ -95,15 +93,16 @@ public class SubscriberServiceTest {
   @Mock private SubscriptionManager mockSubscriptionManager2;
   @Mock private SubscriptionManager mockSubscriptionManager3;
   @Mock private StatisticsManager mockStatisticsManager;
+  private FakeSubscriptionManager fakeSubscriptionManager1;
+  private FakeSubscriptionManager fakeSubscriptionManager2;
+  private FakeSubscriptionManager fakeSubscriptionManager3;
 
   @Before
   public void setUp() {
-    streamingPullCommitLatch = new CountDownLatch(1);
     configurationRepository = setupConfigurationRepository();
     subscriber =
         new SubscriberService(
             configurationRepository,
-            mockKafkaClientFactory,
             mockSubscriptionManagerFactory,
             mockStatisticsManager);
     grpcServerRule.getServiceRegistry().addService(subscriber);
@@ -113,31 +112,24 @@ public class SubscriberServiceTest {
   @Test
   public void shutdown() {
     subscriber.shutdown();
-    //    kafkaClientFactory
-    //        .getConsumersForSubscription(SUBSCRIPTION1)
-    //        .forEach(c -> assertTrue(c.closed()));
-    //    kafkaClientFactory
-    //        .getConsumersForSubscription(SUBSCRIPTION2)
-    //        .forEach(c -> assertTrue(c.closed()));
-    //    kafkaClientFactory
-    //        .getConsumersForSubscription(SUBSCRIPTION3)
-    //        .forEach(c -> assertTrue(c.closed()));
+
+    assertThat(fakeSubscriptionManager1.isRunning(), Matchers.is(false));
+    assertThat(fakeSubscriptionManager2.isRunning(), Matchers.is(false));
+    assertThat(fakeSubscriptionManager3.isRunning(), Matchers.is(false));
   }
 
   @Test
   public void createSubscription() {
     Subscription request =
         Subscription.newBuilder()
-            .setTopic("projects/project-1/topics/topic-1")
+            .setTopic(TestHelpers.PROJECT1_TOPIC1)
             .setName("projects/project-1/subscriptions/new-subscriptions")
             .build();
-    when(mockSubscriptionManagerFactory.create(
-            eq(request), eq(mockKafkaClientFactory), any(ScheduledThreadPoolExecutor.class)))
+    when(mockSubscriptionManagerFactory.create(request))
         .thenReturn(mock(SubscriptionManager.class));
 
     assertThat(blockingStub.createSubscription(request), Matchers.equalTo(request));
-    //    verify(mockSubscriptionManagerFactory)
-    //        .create(request, mockKafkaClientFactory, any(ScheduledThreadPoolExecutor.class));
+    verify(mockSubscriptionManagerFactory).create(request);
   }
 
   @Test
@@ -147,8 +139,8 @@ public class SubscriberServiceTest {
 
     Subscription request =
         Subscription.newBuilder()
-            .setTopic("projects/project-1/topics/topic-1")
-            .setName("projects/project-1/subscriptions/subscription-1")
+            .setTopic(TestHelpers.PROJECT1_TOPIC1)
+            .setName(TestHelpers.PROJECT1_SUBSCRIPTION1)
             .build();
     blockingStub.createSubscription(request);
   }
@@ -168,11 +160,13 @@ public class SubscriberServiceTest {
 
   @Test
   public void deleteSubscription() {
-    String subscriptionName = "projects/project-1/subscriptions/subscription-1";
+    String subscriptionName = TestHelpers.PROJECT1_SUBSCRIPTION1;
     DeleteSubscriptionRequest request =
         DeleteSubscriptionRequest.newBuilder().setSubscription(subscriptionName).build();
 
+    assertThat(fakeSubscriptionManager1.isRunning(), Matchers.is(true));
     blockingStub.deleteSubscription(request);
+    assertThat(fakeSubscriptionManager1.isRunning(), Matchers.is(false));
 
     expectedException.expect(StatusRuntimeException.class);
     expectedException.expectMessage(Status.NOT_FOUND.getCode().toString());
@@ -197,7 +191,7 @@ public class SubscriberServiceTest {
   public void getSubscription() {
     GetSubscriptionRequest request =
         GetSubscriptionRequest.newBuilder()
-            .setSubscription("projects/project-1/subscriptions/subscription-1")
+            .setSubscription(TestHelpers.PROJECT1_SUBSCRIPTION1)
             .build();
     Subscription response = blockingStub.getSubscription(request);
     assertThat(request, Matchers.equalTo(request));
@@ -218,21 +212,21 @@ public class SubscriberServiceTest {
   @Test
   public void listSubscriptions() {
     ListSubscriptionsRequest request =
-        ListSubscriptionsRequest.newBuilder().setProject("projects/project-1").build();
+        ListSubscriptionsRequest.newBuilder().setProject(TestHelpers.PROJECT1).build();
     ListSubscriptionsResponse response = blockingStub.listSubscriptions(request);
 
     assertThat(
         response.getSubscriptionsList(),
         Matchers.contains(
             Subscription.newBuilder()
-                .setName("projects/project-1/subscriptions/subscription-1")
-                .setTopic("projects/project-1/topics/topic-1")
+                .setName(TestHelpers.PROJECT1_SUBSCRIPTION1)
+                .setTopic(TestHelpers.PROJECT1_TOPIC1)
                 .putLabels(KAFKA_TOPIC, "kafka-topic-1")
                 .setAckDeadlineSeconds(10)
                 .build(),
             Subscription.newBuilder()
-                .setName("projects/project-1/subscriptions/subscription-2")
-                .setTopic("projects/project-1/topics/topic-1")
+                .setName(TestHelpers.PROJECT1_SUBSCRIPTION2)
+                .setTopic(TestHelpers.PROJECT1_TOPIC1)
                 .putLabels(KAFKA_TOPIC, "kafka-topic-1")
                 .setAckDeadlineSeconds(30)
                 .build()));
@@ -242,7 +236,7 @@ public class SubscriberServiceTest {
   public void listSubscriptions_withPagination() {
     ListSubscriptionsRequest request =
         ListSubscriptionsRequest.newBuilder()
-            .setProject("projects/project-1")
+            .setProject(TestHelpers.PROJECT1)
             .setPageSize(1)
             .build();
     ListSubscriptionsResponse response = blockingStub.listSubscriptions(request);
@@ -251,8 +245,8 @@ public class SubscriberServiceTest {
         response.getSubscriptionsList(),
         Matchers.contains(
             Subscription.newBuilder()
-                .setName("projects/project-1/subscriptions/subscription-1")
-                .setTopic("projects/project-1/topics/topic-1")
+                .setName(TestHelpers.PROJECT1_SUBSCRIPTION1)
+                .setTopic(TestHelpers.PROJECT1_TOPIC1)
                 .putLabels(KAFKA_TOPIC, "kafka-topic-1")
                 .setAckDeadlineSeconds(10)
                 .build()));
@@ -264,8 +258,8 @@ public class SubscriberServiceTest {
         response.getSubscriptionsList(),
         Matchers.contains(
             Subscription.newBuilder()
-                .setName("projects/project-1/subscriptions/subscription-2")
-                .setTopic("projects/project-1/topics/topic-1")
+                .setName(TestHelpers.PROJECT1_SUBSCRIPTION2)
+                .setTopic(TestHelpers.PROJECT1_TOPIC1)
                 .putLabels(KAFKA_TOPIC, "kafka-topic-1")
                 .setAckDeadlineSeconds(30)
                 .build()));
@@ -288,7 +282,7 @@ public class SubscriberServiceTest {
 
     PullRequest request =
         PullRequest.newBuilder()
-            .setSubscription("projects/project-2/subscriptions/subscription-3")
+            .setSubscription(TestHelpers.PROJECT2_SUBSCRIPTION3)
             .setMaxMessages(100)
             .build();
     PullResponse response = blockingStub.pull(request);
@@ -318,7 +312,7 @@ public class SubscriberServiceTest {
 
     PullRequest request =
         PullRequest.newBuilder()
-            .setSubscription("projects/project-2/subscriptions/subscription-3")
+            .setSubscription(TestHelpers.PROJECT2_SUBSCRIPTION3)
             .setMaxMessages(100)
             .build();
     PullResponse response = blockingStub.pull(request);
@@ -333,7 +327,7 @@ public class SubscriberServiceTest {
 
     AcknowledgeRequest request =
         AcknowledgeRequest.newBuilder()
-            .setSubscription("projects/project-2/subscriptions/subscription-3")
+            .setSubscription(TestHelpers.PROJECT2_SUBSCRIPTION3)
             .addAllAckIds(ackIds)
             .build();
     assertThat(blockingStub.acknowledge(request), Matchers.equalTo(Empty.getDefaultInstance()));
@@ -361,7 +355,7 @@ public class SubscriberServiceTest {
 
     ModifyAckDeadlineRequest request =
         ModifyAckDeadlineRequest.newBuilder()
-            .setSubscription("projects/project-2/subscriptions/subscription-3")
+            .setSubscription(TestHelpers.PROJECT2_SUBSCRIPTION3)
             .setAckDeadlineSeconds(300)
             .addAllAckIds(ackIds)
             .build();
@@ -387,6 +381,7 @@ public class SubscriberServiceTest {
 
   @Test(timeout = 10000)
   public void streamingPull() throws ExecutionException, InterruptedException {
+    CountDownLatch completeLatch = new CountDownLatch(1);
     SubscriberStub asyncStub = SubscriberGrpc.newStub(grpcServerRule.getChannel());
     List<PubsubMessage> messages =
         Arrays.asList(
@@ -420,12 +415,12 @@ public class SubscriberServiceTest {
 
               @Override
               public void onCompleted() {
-
+                completeLatch.countDown();
               }
             });
     StreamingPullRequest request =
         StreamingPullRequest.newBuilder()
-            .setSubscription("projects/project-1/subscriptions/subscription-1")
+            .setSubscription(TestHelpers.PROJECT1_SUBSCRIPTION1)
             .build();
     requestObserver.onNext(request);
 
@@ -447,10 +442,9 @@ public class SubscriberServiceTest {
     request = StreamingPullRequest.newBuilder().addAllAckIds(ackIds).build();
     requestObserver.onNext(request);
     requestObserver.onCompleted();
-    streamingPullCommitLatch.await();
 
+    completeLatch.await();
     verify(mockSubscriptionManager1).acknowledge(ackIds);
-    verify(mockSubscriptionManager1, atLeastOnce()).commitFromAcknowledgments();
   }
 
   @Test(timeout = 10000)
@@ -503,7 +497,7 @@ public class SubscriberServiceTest {
             });
     StreamingPullRequest request =
         StreamingPullRequest.newBuilder()
-            .setSubscription("projects/project-1/subscriptions/subscription-1")
+            .setSubscription(TestHelpers.PROJECT1_SUBSCRIPTION1)
             .build();
     requestObserver.onNext(request);
     try {
@@ -516,13 +510,11 @@ public class SubscriberServiceTest {
 
     requestObserver.onError(Status.CANCELLED.asException());
     streamingFuture.get();
-    streamingPullCommitLatch.await();
-
-    verify(mockSubscriptionManager1, atLeastOnce()).commitFromAcknowledgments();
   }
 
   @Test(timeout = 10000)
   public void streamingPull_overrideAckDeadline() throws ExecutionException, InterruptedException {
+    CountDownLatch completeLatch = new CountDownLatch(1);
     SubscriberStub asyncStub = SubscriberGrpc.newStub(grpcServerRule.getChannel());
     List<PubsubMessage> messages =
         Arrays.asList(
@@ -556,12 +548,12 @@ public class SubscriberServiceTest {
 
               @Override
               public void onCompleted() {
-
+                completeLatch.countDown();
               }
             });
     StreamingPullRequest request =
         StreamingPullRequest.newBuilder()
-            .setSubscription("projects/project-1/subscriptions/subscription-1")
+            .setSubscription(TestHelpers.PROJECT1_SUBSCRIPTION1)
             .setStreamAckDeadlineSeconds(60)
             .build();
     requestObserver.onNext(request);
@@ -584,14 +576,14 @@ public class SubscriberServiceTest {
     request = StreamingPullRequest.newBuilder().addAllAckIds(ackIds).build();
     requestObserver.onNext(request);
     requestObserver.onCompleted();
-    streamingPullCommitLatch.await();
 
+    completeLatch.await();
     verify(mockSubscriptionManager1).acknowledge(ackIds);
-    verify(mockSubscriptionManager1, atLeastOnce()).commitFromAcknowledgments();
   }
 
   @Test(timeout = 10000)
   public void streamingPull_modifyAndAck() throws ExecutionException, InterruptedException {
+    CountDownLatch completeLatch = new CountDownLatch(1);
     SubscriberStub asyncStub = SubscriberGrpc.newStub(grpcServerRule.getChannel());
     List<PubsubMessage> messages =
         Arrays.asList(
@@ -625,12 +617,12 @@ public class SubscriberServiceTest {
 
               @Override
               public void onCompleted() {
-
+                completeLatch.countDown();
               }
             });
     StreamingPullRequest request =
         StreamingPullRequest.newBuilder()
-            .setSubscription("projects/project-1/subscriptions/subscription-1")
+            .setSubscription(TestHelpers.PROJECT1_SUBSCRIPTION1)
             .build();
     requestObserver.onNext(request);
 
@@ -649,10 +641,9 @@ public class SubscriberServiceTest {
             .build();
     requestObserver.onNext(request);
     requestObserver.onCompleted();
-    streamingPullCommitLatch.await();
 
+    completeLatch.await();
     verify(mockSubscriptionManager1).modifyAckDeadline(Collections.singletonList("0-0"), 60);
-    verify(mockSubscriptionManager1, atLeastOnce()).commitFromAcknowledgments();
   }
 
   @Test(timeout = 10000)
@@ -695,7 +686,7 @@ public class SubscriberServiceTest {
             });
     StreamingPullRequest request =
         StreamingPullRequest.newBuilder()
-            .setSubscription("projects/project-1/subscriptions/subscription-1")
+            .setSubscription(TestHelpers.PROJECT1_SUBSCRIPTION1)
             .build();
     requestObserver.onNext(request);
 
@@ -721,6 +712,7 @@ public class SubscriberServiceTest {
     errorFuture.get();
   }
 
+  @SuppressWarnings("unchecked")
   private ConfigurationRepository setupConfigurationRepository() {
     configurationRepository =
         new FakeConfigurationRepository(
@@ -777,44 +769,99 @@ public class SubscriberServiceTest {
                 .build());
     Subscription subscription1 =
         Subscription.newBuilder()
-            .setName("projects/project-1/subscriptions/subscription-1")
-            .setTopic("projects/project-1/topics/topic-1")
+            .setName(TestHelpers.PROJECT1_SUBSCRIPTION1)
+            .setTopic(TestHelpers.PROJECT1_TOPIC1)
             .putLabels(KAFKA_TOPIC, "kafka-topic-1")
             .setAckDeadlineSeconds(10)
             .build();
     Subscription subscription2 =
         Subscription.newBuilder()
-            .setName("projects/project-1/subscriptions/subscription-2")
-            .setTopic("projects/project-1/topics/topic-1")
+            .setName(TestHelpers.PROJECT1_SUBSCRIPTION2)
+            .setTopic(TestHelpers.PROJECT1_TOPIC1)
             .putLabels(KAFKA_TOPIC, "kafka-topic-1")
             .setAckDeadlineSeconds(30)
             .build();
     Subscription subscription3 =
         Subscription.newBuilder()
-            .setName("projects/project-2/subscriptions/subscription-3")
+            .setName(TestHelpers.PROJECT2_SUBSCRIPTION3)
             .setTopic("projects/project-2/topics/topic-2")
             .putLabels(KAFKA_TOPIC, "kafka-topic-2")
             .setAckDeadlineSeconds(45)
             .build();
 
-    when(mockSubscriptionManagerFactory.create(
-            eq(subscription1), eq(mockKafkaClientFactory), any(ScheduledThreadPoolExecutor.class)))
-        .thenReturn(mockSubscriptionManager1);
-    when(mockSubscriptionManagerFactory.create(
-            eq(subscription2), eq(mockKafkaClientFactory), any(ScheduledThreadPoolExecutor.class)))
-        .thenReturn(mockSubscriptionManager2);
-    when(mockSubscriptionManagerFactory.create(
-            eq(subscription3), eq(mockKafkaClientFactory), any(ScheduledThreadPoolExecutor.class)))
-        .thenReturn(mockSubscriptionManager3);
+    Consumer<String, ByteBuffer> mockConsumer = (Consumer<String, ByteBuffer>) mock(Consumer.class);
+    when(mockKafkaClientFactory.createConsumer(subscription1.getName())).thenReturn(mockConsumer);
+    when(mockKafkaClientFactory.createConsumer(subscription2.getName())).thenReturn(mockConsumer);
+    when(mockKafkaClientFactory.createConsumer(subscription3.getName())).thenReturn(mockConsumer);
+    when(mockConsumer.partitionsFor(anyString())).thenReturn(Collections.emptyList());
 
-    when(mockSubscriptionManager1.getSubscription()).thenReturn(subscription1);
-    when(mockSubscriptionManager1.commitFromAcknowledgments())
-        .thenAnswer(
-            invocationOnMock -> {
-              streamingPullCommitLatch.countDown();
-              return Collections.emptyMap();
-            });
+    fakeSubscriptionManager1 =
+        spy(new FakeSubscriptionManager(subscription1, mockSubscriptionManager1, mockKafkaClientFactory));
+    fakeSubscriptionManager2 =
+        spy(new FakeSubscriptionManager(subscription2, mockSubscriptionManager2, mockKafkaClientFactory));
+    fakeSubscriptionManager3 =
+        spy(new FakeSubscriptionManager(subscription3, mockSubscriptionManager3, mockKafkaClientFactory));
+
+    when(mockSubscriptionManagerFactory.create(subscription1)).thenReturn(fakeSubscriptionManager1);
+    when(mockSubscriptionManagerFactory.create(subscription2)).thenReturn(fakeSubscriptionManager2);
+    when(mockSubscriptionManagerFactory.create(subscription3)).thenReturn(fakeSubscriptionManager3);
 
     return configurationRepository;
+  }
+
+  // Making a fake class that wraps a Mock
+  private static class FakeSubscriptionManager extends SubscriptionManager {
+
+    private final SubscriptionManager mockDelegate;
+    private final Subscription subscription;
+
+    FakeSubscriptionManager(
+        Subscription subscription,
+        SubscriptionManager mockDelegate,
+        KafkaClientFactory kafkaClientFactory) {
+      super(subscription, kafkaClientFactory, Clock.systemUTC(), 4);
+      this.mockDelegate = mockDelegate;
+      this.subscription = subscription;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static KafkaClientFactory configureMockKafkaClientFactory() {
+      Consumer<String, ByteBuffer> mockConsumer = mock(Consumer.class);
+      KafkaClientFactory kafkaClientFactory = mock(KafkaClientFactory.class);
+      when(kafkaClientFactory.createConsumer(anyString())).thenReturn(mockConsumer);
+      when(mockConsumer.partitionsFor(anyString())).thenReturn(Collections.emptyList());
+      return kafkaClientFactory;
+    }
+
+    @Override
+    public Subscription getSubscription() {
+      return subscription;
+    }
+
+    @Override
+    public List<PubsubMessage> pull(int maxMessages, boolean returnImmediately) {
+      return mockDelegate.pull(maxMessages, returnImmediately);
+    }
+
+    @Override
+    public List<PubsubMessage> pull(
+        int maxMessages, boolean returnImmediately, int ackDeadlineSecs) {
+      return mockDelegate.pull(maxMessages, returnImmediately, ackDeadlineSecs);
+    }
+
+    @Override
+    public List<String> acknowledge(List<String> ackIds) {
+      return mockDelegate.acknowledge(ackIds);
+    }
+
+    @Override
+    public List<String> modifyAckDeadline(List<String> ackIds, int ackDeadlineSecs) {
+      return mockDelegate.modifyAckDeadline(ackIds, ackDeadlineSecs);
+    }
+
+    @Override
+    public String toString() {
+      return mockDelegate.toString();
+    }
   }
 }
