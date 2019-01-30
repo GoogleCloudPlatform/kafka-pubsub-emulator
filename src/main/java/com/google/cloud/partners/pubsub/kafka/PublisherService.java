@@ -16,6 +16,8 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
+import static com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.KAFKA_TOPIC;
+
 import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository;
 import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.ConfigurationAlreadyExistsException;
 import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.ConfigurationNotFoundException;
@@ -26,6 +28,7 @@ import com.google.pubsub.v1.ListTopicSubscriptionsRequest;
 import com.google.pubsub.v1.ListTopicSubscriptionsResponse;
 import com.google.pubsub.v1.ListTopicsRequest;
 import com.google.pubsub.v1.ListTopicsResponse;
+import com.google.pubsub.v1.ProjectTopicName;
 import com.google.pubsub.v1.PublishRequest;
 import com.google.pubsub.v1.PublishResponse;
 import com.google.pubsub.v1.PublisherGrpc.PublisherImplBase;
@@ -62,7 +65,7 @@ import org.apache.kafka.common.header.internals.RecordHeaders;
 class PublisherService extends PublisherImplBase {
 
   private static final Logger LOGGER = Logger.getLogger(PublisherService.class.getName());
-  private static final int MAX_PUBLISH_WAIT = 10; // seconds
+  private static final int MAX_PUBLISH_WAIT = 9; // seconds, 10s is the default publish RPC timeout
 
   private final ConfigurationRepository configurationRepository;
   private final List<Producer<String, ByteBuffer>> kafkaProducers = new ArrayList<>();
@@ -181,6 +184,8 @@ class PublisherService extends PublisherImplBase {
   private void publishToKafka(
       PublishRequest request, Topic topic, StreamObserver<PublishResponse> responseObserver) {
     Instant start = Instant.now();
+    String kafkaTopic =
+        topic.getLabelsOrDefault(KAFKA_TOPIC, ProjectTopicName.parse(topic.getName()).getTopic());
     int producerIndex = nextProducerIndex.getAndUpdate((value) -> ++value % kafkaProducers.size());
     Producer<String, ByteBuffer> producer = kafkaProducers.get(producerIndex);
 
@@ -191,12 +196,12 @@ class PublisherService extends PublisherImplBase {
         .getMessagesList()
         .forEach(
             m -> {
-              ProducerRecord<String, ByteBuffer> producerRecord = buildProducerRecord(topic, m);
+              ProducerRecord<String, ByteBuffer> producerRecord =
+                  buildProducerRecord(kafkaTopic, m);
               long publishedAt = System.currentTimeMillis();
               producer.send(
                   producerRecord,
                   (recordMetadata, exception) -> {
-                    callbacks.countDown();
                     if (recordMetadata != null) {
                       builder.addMessageIds(
                           recordMetadata.partition() + "-" + recordMetadata.offset());
@@ -206,6 +211,7 @@ class PublisherService extends PublisherImplBase {
                       statisticsManager.computePublishError(topic.getName());
                       failures.incrementAndGet();
                     }
+                    callbacks.countDown();
                   });
             });
 
@@ -215,17 +221,13 @@ class PublisherService extends PublisherImplBase {
       }
 
       LOGGER.fine(
-          "Published "
-              + builder.getMessageIdsCount()
-              + " of "
-              + request.getMessagesCount()
-              + " messages to "
-              + topic.getName()
-              + " using KafkaProducer "
-              + producerIndex
-              + " in "
-              + Duration.between(start, Instant.now()).toMillis()
-              + "ms");
+          String.format(
+              "Published %d of %d messages to %s using KafkaProducer %d in %dms",
+              builder.getMessageIdsCount(),
+              request.getMessagesCount(),
+              kafkaTopic,
+              producerIndex,
+              Duration.between(start, Instant.now()).toMillis()));
       if (failures.get() == 0) {
         responseObserver.onNext(builder.build());
         responseObserver.onCompleted();
@@ -240,9 +242,10 @@ class PublisherService extends PublisherImplBase {
     }
   }
 
-  private ProducerRecord<String, ByteBuffer> buildProducerRecord(Topic topic, PubsubMessage m) {
+  private ProducerRecord<String, ByteBuffer> buildProducerRecord(
+      String kafkaTopic, PubsubMessage m) {
     return new ProducerRecord<String, ByteBuffer>(
-        topic.getName(),
+        kafkaTopic,
         null,
         null,
         m.getData().asReadOnlyByteBuffer(),

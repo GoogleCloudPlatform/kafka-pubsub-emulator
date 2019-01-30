@@ -164,7 +164,8 @@ class SubscriptionManager extends AbstractScheduledService {
    * @return List of ackIds that were successfully acknowledged before their expiration
    */
   public List<String> acknowledge(List<String> ackIds) {
-    return ackIds.stream()
+    return ackIds
+        .stream()
         .map(this::getOutstandingIfNotExpired)
         .filter(Optional::isPresent)
         .map(
@@ -183,7 +184,8 @@ class SubscriptionManager extends AbstractScheduledService {
    * @return List of ackIds that were successfully modified before their expiration
    */
   public List<String> modifyAckDeadline(List<String> ackIds, int ackDeadlineSecs) {
-    return ackIds.stream()
+    return ackIds
+        .stream()
         .map(this::getOutstandingIfNotExpired)
         .filter(Optional::isPresent)
         .map(
@@ -237,7 +239,8 @@ class SubscriptionManager extends AbstractScheduledService {
           i == 0 ? first : kafkaClientFactory.createConsumer(subscription.getName());
       int consumerIndex = i;
       Set<TopicPartition> partitionSet =
-          partitionInfo.stream()
+          partitionInfo
+              .stream()
               .filter(p -> p.partition() % totalConsumers == consumerIndex)
               .map(p -> new TopicPartition(kafkaTopicName, p.partition()))
               .collect(Collectors.toSet());

@@ -24,8 +24,6 @@ import com.google.cloud.partners.pubsub.kafka.common.AdminGrpc.AdminBlockingStub
 import com.google.cloud.partners.pubsub.kafka.common.ConfigurationRequest;
 import com.google.cloud.partners.pubsub.kafka.common.ConfigurationResponse;
 import com.google.cloud.partners.pubsub.kafka.common.ConfigurationResponse.Extension;
-import com.google.cloud.partners.pubsub.kafka.common.Metric;
-import com.google.cloud.partners.pubsub.kafka.common.StatisticsConsolidation;
 import com.google.cloud.partners.pubsub.kafka.common.StatisticsRequest;
 import com.google.cloud.partners.pubsub.kafka.common.StatisticsResponse;
 import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository;
@@ -34,11 +32,10 @@ import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.TextFormat;
 import com.google.protobuf.TextFormat.ParseException;
 import io.grpc.testing.GrpcServerRule;
+import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.util.Map;
-import java.util.stream.Collectors;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Rule;
@@ -92,12 +89,13 @@ public class AdminServiceTest {
   }
 
   @Test
-  public void configuration() {
+  public void configuration() throws IOException {
     ConfigurationResponse configurationResponse =
         blockingStub.configuration(ConfigurationRequest.newBuilder().build());
 
     assertThat(configurationResponse.getExtension(), Matchers.equalTo(Extension.JSON));
-    assertThat(configurationResponse.getContent(), Matchers.equalTo(TestHelpers.CONFIG));
+    assertThat(
+        configurationResponse.getContent(), Matchers.equalTo(TestHelpers.getTestConfigJson()));
   }
 
   private StatisticsInformation givenStatisticsInformation(int errors, long... latencies) {

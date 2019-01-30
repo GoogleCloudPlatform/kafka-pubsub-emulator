@@ -28,17 +28,10 @@ import com.google.inject.Injector;
 import com.google.pubsub.v1.PublisherGrpc;
 import com.google.pubsub.v1.SubscriberGrpc;
 import io.grpc.Server;
-import io.grpc.netty.NettyServerBuilder;
+import io.grpc.ServerBuilder;
 import io.grpc.services.HealthStatusManager;
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.ServerChannel;
-import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.util.concurrent.DefaultThreadFactory;
 import java.io.File;
 import java.io.IOException;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.ThreadFactory;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.inject.Inject;
@@ -52,12 +45,9 @@ public class PubsubEmulatorServer {
 
   private static final Logger LOGGER = Logger.getLogger(PubsubEmulatorServer.class.getName());
   private static final int MAX_MESSAGE_SIZE = 1000 * 1000 * 10; // 10MB
-  private static final String THREAD_POOL_NAME = "pubsubemulator-grpc-threads";
 
-  private final ConfigurationRepository configurationRepository;
   private final PublisherService publisher;
   private final SubscriberService subscriber;
-  private final AdminService admin;
   private final HealthStatusManager healthStatusManager;
   private final Server server;
 
@@ -68,13 +58,23 @@ public class PubsubEmulatorServer {
       SubscriberService subscriber,
       AdminService admin,
       HealthStatusManager healthStatusManager) {
-    this.configurationRepository = configurationRepository;
     this.publisher = publisher;
     this.subscriber = subscriber;
-    this.admin = admin;
     this.healthStatusManager = healthStatusManager;
 
-    server = initializeServer();
+    ServerBuilder builder =
+        ServerBuilder.forPort(configurationRepository.getServer().getPort())
+            .addService(publisher)
+            .addService(subscriber)
+            .addService(admin)
+            .addService(healthStatusManager.getHealthService())
+            .maxInboundMessageSize(MAX_MESSAGE_SIZE);
+    if (configurationRepository.getServer().hasSecurity()) {
+      builder.useTransportSecurity(
+          new File(configurationRepository.getServer().getSecurity().getCertificateChainFile()),
+          new File(configurationRepository.getServer().getSecurity().getPrivateKeyFile()));
+    }
+    server = builder.build();
   }
 
   /**
@@ -118,13 +118,6 @@ public class PubsubEmulatorServer {
                 }));
   }
 
-  /** Add status information to healthcheck for each service. */
-  private void startHealthcheckServices() {
-    healthStatusManager.setStatus(PublisherGrpc.SERVICE_NAME, SERVING);
-    healthStatusManager.setStatus(SubscriberGrpc.SERVICE_NAME, SERVING);
-    healthStatusManager.setStatus(AdminGrpc.SERVICE_NAME, SERVING);
-  }
-
   /** Stop serving requests, then shutdown Publisher and Subscriber services. */
   public void stop() {
     if (server != null) {
@@ -141,58 +134,14 @@ public class PubsubEmulatorServer {
     }
   }
 
-  /**
-   * Initializes the gRPC server with optimum settings taken from the gRPC Performance Benchmark
-   * configuration @ https://github.com/grpc/grpc-java/blob/master/benchmarks
-   * /src/main/java/io/grpc/benchmarks/qps/AsyncServer.java
-   *
-   * @return {@link Server}
-   */
-  private Server initializeServer() {
-    EventLoopGroup boss;
-    EventLoopGroup worker;
-    Class<? extends ServerChannel> channelType;
-    ThreadFactory tf = new DefaultThreadFactory(THREAD_POOL_NAME, true);
-    try {
-      // These classes are only available on linux.
-      Class<?> groupClass = Class.forName("io.netty.channel.epoll.EpollEventLoopGroup");
-      @SuppressWarnings("unchecked")
-      Class<? extends ServerChannel> channelClass =
-          (Class<? extends ServerChannel>)
-              Class.forName("io.netty.channel.epoll.EpollServerSocketChannel");
-      boss =
-          (EventLoopGroup)
-              (groupClass.getConstructor(int.class, ThreadFactory.class).newInstance(1, tf));
-      worker =
-          (EventLoopGroup)
-              (groupClass.getConstructor(int.class, ThreadFactory.class).newInstance(0, tf));
-      channelType = channelClass;
-    } catch (Exception e) {
-      boss = new NioEventLoopGroup(1, tf);
-      worker = new NioEventLoopGroup(0, tf);
-      channelType = NioServerSocketChannel.class;
-    }
-
-    NettyServerBuilder builder =
-        NettyServerBuilder.forPort(configurationRepository.getServer().getPort())
-            .bossEventLoopGroup(boss)
-            .workerEventLoopGroup(worker)
-            .channelType(channelType)
-            .maxMessageSize(MAX_MESSAGE_SIZE)
-            .addService(publisher)
-            .addService(subscriber)
-            .addService(admin)
-            .addService(healthStatusManager.getHealthService())
-            .executor(new ForkJoinPool(Runtime.getRuntime().availableProcessors()));
-    if (configurationRepository.getServer().hasSecurity()) {
-      builder.useTransportSecurity(
-          new File(configurationRepository.getServer().getSecurity().getCertificateChainFile()),
-          new File(configurationRepository.getServer().getSecurity().getPrivateKeyFile()));
-    }
-    return builder.build();
+  /** Add status information to healthcheck for each service. */
+  private void startHealthcheckServices() {
+    healthStatusManager.setStatus(PublisherGrpc.SERVICE_NAME, SERVING);
+    healthStatusManager.setStatus(SubscriberGrpc.SERVICE_NAME, SERVING);
+    healthStatusManager.setStatus(AdminGrpc.SERVICE_NAME, SERVING);
   }
 
-  /** Arguments for emulator. */
+  /** Command-line arguments. */
   @Parameters(separators = "=")
   private static final class Args {
     @Parameter(

@@ -33,7 +33,6 @@ import com.google.cloud.partners.pubsub.kafka.config.PubSub;
 import com.google.cloud.partners.pubsub.kafka.config.Server;
 import com.google.cloud.partners.pubsub.kafka.config.Topic;
 import com.google.common.collect.ImmutableList;
-import com.google.common.util.concurrent.Service;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import com.google.pubsub.v1.AcknowledgeRequest;
@@ -102,9 +101,7 @@ public class SubscriberServiceTest {
     configurationRepository = setupConfigurationRepository();
     subscriber =
         new SubscriberService(
-            configurationRepository,
-            mockSubscriptionManagerFactory,
-            mockStatisticsManager);
+            configurationRepository, mockSubscriptionManagerFactory, mockStatisticsManager);
     grpcServerRule.getServiceRegistry().addService(subscriber);
     blockingStub = SubscriberGrpc.newBlockingStub(grpcServerRule.getChannel());
   }
@@ -796,11 +793,17 @@ public class SubscriberServiceTest {
     when(mockConsumer.partitionsFor(anyString())).thenReturn(Collections.emptyList());
 
     fakeSubscriptionManager1 =
-        spy(new FakeSubscriptionManager(subscription1, mockSubscriptionManager1, mockKafkaClientFactory));
+        spy(
+            new FakeSubscriptionManager(
+                subscription1, mockSubscriptionManager1, mockKafkaClientFactory));
     fakeSubscriptionManager2 =
-        spy(new FakeSubscriptionManager(subscription2, mockSubscriptionManager2, mockKafkaClientFactory));
+        spy(
+            new FakeSubscriptionManager(
+                subscription2, mockSubscriptionManager2, mockKafkaClientFactory));
     fakeSubscriptionManager3 =
-        spy(new FakeSubscriptionManager(subscription3, mockSubscriptionManager3, mockKafkaClientFactory));
+        spy(
+            new FakeSubscriptionManager(
+                subscription3, mockSubscriptionManager3, mockKafkaClientFactory));
 
     when(mockSubscriptionManagerFactory.create(subscription1)).thenReturn(fakeSubscriptionManager1);
     when(mockSubscriptionManagerFactory.create(subscription2)).thenReturn(fakeSubscriptionManager2);

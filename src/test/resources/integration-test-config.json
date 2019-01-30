@@ -1,0 +1,61 @@
+{
+  "server": {
+    "port": 8080
+  },
+  "kafka": {
+    "bootstrapServers": [
+      "localhost:9094",
+      "localhost:9095",
+      "localhost:9096"
+    ],
+    "producerExecutors": 4,
+    "producerProperties": {
+      "linger.ms": "200",
+      "batch.size": "10000",
+      "buffer.memory": "32000000"
+    },
+    "consumerProperties": {
+      "max.poll.records": "1000"
+    },
+    "consumersPerSubscription": 4
+  },
+  "pubsub": {
+    "projects": [
+      {
+        "name": "emulator-testing",
+        "topics": [
+          {
+            "name": "broker-failure",
+            "kafkaTopic": "broker-failure",
+            "subscriptions": [
+              {
+                "name": "subscription-to-broker-failure",
+                "ackDeadlineSeconds": 10
+              }
+            ]
+          },
+          {
+            "name": "publish-and-streaming-pull",
+            "kafkaTopic": "publish-and-streaming-pull",
+            "subscriptions": [
+              {
+                "name": "subscription-to-publish-and-streaming-pull",
+                "ackDeadlineSeconds": 10
+              }
+            ]
+          },
+          {
+            "name": "ssl-server",
+            "kafkaTopic": "ssl-server",
+            "subscriptions": [
+              {
+                "name": "subscription-to-secured-server",
+                "ackDeadlineSeconds": 10
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

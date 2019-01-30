@@ -20,7 +20,6 @@ import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
 
 import com.google.cloud.partners.pubsub.kafka.integration.util.BaseIT;
-import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
 import com.google.cloud.pubsub.v1.Publisher;
 import com.google.cloud.pubsub.v1.Subscriber;
 import com.google.protobuf.ByteString;
@@ -49,7 +48,7 @@ import org.junit.Test;
 public class ClientLibraryIT extends BaseIT {
 
   private static final Logger LOGGER = Logger.getLogger(ClientLibraryIT.class.getName());
-  private static final String TOPIC = "publish-and-streaming-pull";
+  private static final String SUBSCRIPTION = "subscription-to-publish-and-streaming-pull";
 
   /**
    * Verifies that a Publisher can publish messages and a Subscriber will receive exactly those same
@@ -57,8 +56,7 @@ public class ClientLibraryIT extends BaseIT {
    */
   @Test(timeout = 30000)
   public void publishAndStreamingPull() throws Exception {
-    SubscriptionProperties subscriptionProperties = getSubscriptionPropertiesByTopic(TOPIC);
-    String messagePrefix = subscriptionProperties.getName() + System.currentTimeMillis() + "-";
+    String messagePrefix = CLIENT_LIBRARY_TOPIC + System.currentTimeMillis() + "-";
     int messages = 5000;
     Set<String> messagesSet = new TreeSet<>();
     for (int i = 0; i < messages; i++) {
@@ -69,11 +67,11 @@ public class ClientLibraryIT extends BaseIT {
     Set<String> publishedIds = new ConcurrentSkipListSet<>();
     Set<String> receivedIds = new ConcurrentSkipListSet<>();
     LongAdder duplicates = new LongAdder();
-    Publisher publisher = getPublisher(subscriptionProperties);
+    Publisher publisher = getPublisher(CLIENT_LIBRARY_TOPIC);
 
     Subscriber subscriber =
         getSubscriber(
-            subscriptionProperties,
+            SUBSCRIPTION,
             (message, consumer) -> {
               consumer.ack();
               if (receivedIds.contains(message.getMessageId())) {
@@ -88,7 +86,7 @@ public class ClientLibraryIT extends BaseIT {
       publish(
           publisher,
           PubsubMessage.newBuilder().setData(ByteString.copyFromUtf8(data)).build(),
-          (throwable) -> LOGGER.log(Level.SEVERE, "Error on publisher", throwable),
+          (throwable) -> LOGGER.severe("Publisher Error " + throwable.getMessage()),
           (result) -> {
             publishedIds.add(result);
             publisherCountDownLatch.countDown();
@@ -112,7 +110,8 @@ public class ClientLibraryIT extends BaseIT {
     assertEquals(receivedIds, publishedIds);
     assertEquals(0, duplicates.intValue());
 
-    Consumer<String, ByteBuffer> validator = getValidationConsumer(subscriptionProperties);
+    Consumer<String, ByteBuffer> validator =
+        getValidationConsumer(CLIENT_LIBRARY_TOPIC, SUBSCRIPTION);
     validator
         .assignment()
         .forEach(
@@ -127,10 +126,9 @@ public class ClientLibraryIT extends BaseIT {
    * Verifies the scenario where a message is not acknowledged and all of the subsequent messages
    * from that partition are resent after a period of time.
    */
-  @Test // (timeout = 30000)
+  @Test(timeout = 60000)
   public void publishAndStreamingPullSkipAck() throws Exception {
-    SubscriptionProperties subscriptionProperties = getSubscriptionPropertiesByTopic(TOPIC);
-    String messagePrefix = subscriptionProperties.getName() + System.currentTimeMillis() + "-";
+    String messagePrefix = CLIENT_LIBRARY_TOPIC + System.currentTimeMillis() + "-";
     int messages = 5000;
     Set<String> messagesSet = new TreeSet<>();
     for (int i = 0; i < messages; i++) {
@@ -141,14 +139,14 @@ public class ClientLibraryIT extends BaseIT {
     Set<String> publishedIds = new ConcurrentSkipListSet<>();
     Set<String> resentIds = new ConcurrentSkipListSet<>();
     Map<String, Integer> receivedIds = new ConcurrentHashMap<>();
-    Publisher publisher = getPublisher(subscriptionProperties);
+    Publisher publisher = getPublisher(CLIENT_LIBRARY_TOPIC);
     AtomicInteger receivedCounter = new AtomicInteger();
     AtomicInteger reReceivedCounter = new AtomicInteger();
     CompletableFuture<String> skippedAck = new CompletableFuture<>();
 
     Subscriber subscriber =
         getSubscriber(
-            subscriptionProperties,
+            SUBSCRIPTION,
             (message, consumer) -> {
               // Miss a single ack after half the messages are received
               if (receivedCounter.incrementAndGet() == messages / 2) {
@@ -220,7 +218,8 @@ public class ClientLibraryIT extends BaseIT {
           }
         });
 
-    Consumer<String, ByteBuffer> validator = getValidationConsumer(subscriptionProperties);
+    Consumer<String, ByteBuffer> validator =
+        getValidationConsumer(CLIENT_LIBRARY_TOPIC, SUBSCRIPTION);
     validator
         .assignment()
         .forEach(

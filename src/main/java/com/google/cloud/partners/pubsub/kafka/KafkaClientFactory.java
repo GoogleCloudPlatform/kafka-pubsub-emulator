@@ -21,7 +21,7 @@ import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.producer.Producer;
 
 /** Interface for a factory that returns Kafka client objects. */
-interface KafkaClientFactory {
+public interface KafkaClientFactory {
 
   Consumer<String, ByteBuffer> createConsumer(String subscription);
 

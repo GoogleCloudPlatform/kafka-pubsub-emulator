@@ -22,9 +22,7 @@ import java.time.Clock;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
-/**
- * Factory for creating SubscriptionManagers.
- */
+/** Factory for creating SubscriptionManagers. */
 @Singleton
 class SubscriptionManagerFactory {
 

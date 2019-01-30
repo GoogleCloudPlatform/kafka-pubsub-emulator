@@ -34,6 +34,7 @@ import com.google.cloud.partners.pubsub.kafka.common.StatisticsRequest;
 import com.google.cloud.partners.pubsub.kafka.common.StatisticsResponse;
 import com.google.cloud.pubsub.v1.Publisher;
 import com.google.cloud.pubsub.v1.Subscriber;
+import com.google.common.util.concurrent.RateLimiter;
 import com.google.protobuf.ByteString;
 import com.google.pubsub.v1.PubsubMessage;
 import io.grpc.ManagedChannel;
@@ -48,7 +49,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.logging.LogManager;
@@ -65,7 +65,6 @@ import org.threeten.bp.Duration;
 public class PerformanceBenchmark {
 
   private static final Logger LOGGER = Logger.getLogger(PerformanceBenchmark.class.getName());
-  private static final int MAX_OUTSTANDING_PUBLISH_REQUESTS = 1000;
   private static final String MESSAGE_SEQUENCE = "messageSequence";
   private static final String SENT_AT = "sentAt";
 
@@ -85,12 +84,21 @@ public class PerformanceBenchmark {
   private String subscription;
   @Parameter(names = "-duration", description = "Duration (in seconds) to run the benchmark", required = true)
   private int duration;
-  @Parameter(names = "-publishers", description = "Number of Publisher clients to use", required = true)
-  private int numPublishers;
-  @Parameter(names = "-subscribers", description = "Number of Subscriber clients to use", required = true)
-  private int numSubscribers;
-  @Parameter(names = "-messageSize", description = "Size of message (in bytes)", required = true)
-  private int messageSizeBytes;
+
+  @Parameter(names = "-publishers", description = "Number of Publisher clients to use (default: 2)")
+  private int numPublishers = 2;
+
+  @Parameter(
+      names = "-subscribers",
+      description = "Number of Subscriber clients to use (default: 2)")
+  private int numSubscribers = 2;
+
+  @Parameter(names = "-publishQps", description = "Target QPS for Publishers (default: 100)")
+  private int publishQps = 100;
+
+  @Parameter(names = "-messageSize", description = "Size of message (in bytes) (default: 1024)")
+  private int messageSizeBytes = 1024;
+
   private Instant startedAt;
 
   public PerformanceBenchmark() {
@@ -119,7 +127,7 @@ public class PerformanceBenchmark {
     ScheduledExecutorService executorService = Executors.newScheduledThreadPool(numPublishers + 1);
     CountDownLatch publisherCountDown = new CountDownLatch(1);
     CountDownLatch subscriberCountDown = new CountDownLatch(1);
-    Semaphore maxOutstandingRequests = new Semaphore(MAX_OUTSTANDING_PUBLISH_REQUESTS);
+    RateLimiter rateLimiter = RateLimiter.create(publishQps);
 
     List<Publisher> publishers = new ArrayList<>();
     List<Subscriber> subscribers = new ArrayList<>();
@@ -141,8 +149,8 @@ public class PerformanceBenchmark {
 
     LOGGER.info(
         format(
-            "Running throughput test on %s for %ds using %d Publishers and %d Subscribers using %d byte messages",
-            topic, duration, publishers.size(), subscribers.size(), messageSizeBytes));
+            "Running throughput test on %s for %ds using %d Publishers and %d Subscribers using %d byte messages and a maximum Publish rate of %d",
+            topic, duration, publishers.size(), subscribers.size(), messageSizeBytes, publishQps));
     startedAt = Instant.now();
     subscribers.forEach(Subscriber::startAsync);
     publishers.forEach(
@@ -151,10 +159,7 @@ public class PerformanceBenchmark {
                 () -> {
                   boolean done = false;
                   while (!done) {
-                    try {
-                      maxOutstandingRequests.acquire();
-                    } catch (InterruptedException ignored) {
-                    }
+                    rateLimiter.acquire();
                     long publishedAt = System.currentTimeMillis();
                     messageSequence.increment();
                     ApiFutures.addCallback(
@@ -168,7 +173,6 @@ public class PerformanceBenchmark {
                           @Override
                           public void onFailure(Throwable throwable) {
                             publishErrors.increment();
-                            maxOutstandingRequests.release();
                           }
 
                           @Override
@@ -176,7 +180,6 @@ public class PerformanceBenchmark {
                             publishedLatencies.put(
                                 messageId, System.currentTimeMillis() - publishedAt);
                             bytesPublished.add(messageSizeBytes);
-                            maxOutstandingRequests.release();
                           }
                         });
                     try {
