@@ -20,7 +20,10 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 import com.google.protobuf.ByteString;
 import com.google.pubsub.v1.PubsubMessage;
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -43,75 +46,12 @@ public class TestHelpers {
       "projects/project-1/subscriptions/subscription-2";
   public static final String PROJECT2_SUBSCRIPTION3 =
       "projects/project-2/subscriptions/subscription-3";
-  public static final String CONFIG =
-      "{\n"
-          + "  \"server\": {\n"
-          + "    \"port\": 8080,\n"
-          + "    \"security\": {\n"
-          + "      \"certificateChainFile\": \"/path/to/server.crt\",\n"
-          + "      \"privateKeyFile\": \"/path/to/server.key\"\n"
-          + "    }\n"
-          + "  },\n"
-          + "  \"kafka\": {\n"
-          + "    \"bootstrapServers\": [\"server1:2192\", \"server2:2192\"],\n"
-          + "    \"producerProperties\": {\n"
-          + "      \"max.poll.records\": \"1000\"\n"
-          + "    },\n"
-          + "    \"producerExecutors\": 4,\n"
-          + "    \"consumerProperties\": {\n"
-          + "      \"linger.ms\": \"5\",\n"
-          + "      \"batch.size\": \"1000000\",\n"
-          + "      \"buffer.memory\": \"32000000\"\n"
-          + "    },\n"
-          + "    \"consumersPerSubscription\": 4\n"
-          + "  },\n"
-          + "  \"pubsub\": {\n"
-          + "    \"projects\": [{\n"
-          + "      \"name\": \"project-1\",\n"
-          + "      \"topics\": [{\n"
-          + "        \"name\": \"topic-1\",\n"
-          + "        \"kafkaTopic\": \"kafka-topic-1\",\n"
-          + "        \"subscriptions\": [{\n"
-          + "          \"name\": \"subscription-1\",\n"
-          + "          \"ackDeadlineSeconds\": 10\n"
-          + "        }, {\n"
-          + "          \"name\": \"subscription-2\",\n"
-          + "          \"ackDeadlineSeconds\": 10\n"
-          + "        }]\n"
-          + "      }, {\n"
-          + "        \"name\": \"topic-2\",\n"
-          + "        \"kafkaTopic\": \"kafka-topic-2\",\n"
-          + "        \"subscriptions\": [{\n"
-          + "          \"name\": \"subscription-3\",\n"
-          + "          \"ackDeadlineSeconds\": 30\n"
-          + "        }, {\n"
-          + "          \"name\": \"subscription-4\",\n"
-          + "          \"ackDeadlineSeconds\": 45\n"
-          + "        }]\n"
-          + "      }]\n"
-          + "    }, {\n"
-          + "      \"name\": \"project-2\",\n"
-          + "      \"topics\": [{\n"
-          + "        \"name\": \"topic-1\",\n"
-          + "        \"kafkaTopic\": \"kafka-topic-1\",\n"
-          + "        \"subscriptions\": [{\n"
-          + "          \"name\": \"subscription-1\",\n"
-          + "          \"ackDeadlineSeconds\": 10\n"
-          + "        }, {\n"
-          + "          \"name\": \"subscription-2\",\n"
-          + "          \"ackDeadlineSeconds\": 10\n"
-          + "        }]\n"
-          + "      }, {\n"
-          + "        \"name\": \"topic-2\",\n"
-          + "        \"kafkaTopic\": \"kafka-topic-2\",\n"
-          + "        \"subscriptions\": [{\n"
-          + "          \"name\": \"subscription-3\",\n"
-          + "          \"ackDeadlineSeconds\": 30\n"
-          + "        }]\n"
-          + "      }]\n"
-          + "    }]\n"
-          + "  }\n"
-          + "}";
+  public static final String CONFIG_FILE = "unit-test-config.json";
+
+  public static String getTestConfigJson() throws IOException {
+    return String.join(
+        "\n", Files.readAllLines(Paths.get(ClassLoader.getSystemResource(CONFIG_FILE).getPath())));
+  }
 
   /** Generate a sequence of PubsubMessage objects. */
   static List<PubsubMessage> generatePubsubMessages(int howMany) {

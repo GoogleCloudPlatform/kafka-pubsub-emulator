@@ -47,6 +47,7 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcServerRule;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -261,14 +262,69 @@ public class PublisherServiceTest {
             .addAllMessages(generatePubsubMessages(messages))
             .build();
 
-    startPublishExecutor(messages);
+    MockProducer<String, ByteBuffer> mockProducer = startPublishExecutor(messages);
 
     PublishResponse response = blockingStub.publish(request);
+    List<String> topics = new ArrayList<>();
+    List<String> data = new ArrayList<>();
+    for (ProducerRecord<String, ByteBuffer> producerRecord : mockProducer.history()) {
+      topics.add(producerRecord.topic());
+      data.add(UTF_8.decode(producerRecord.value()).toString());
+    }
+
     assertThat(response.getMessageIdsList(), Matchers.contains("0-0", "0-1", "0-2", "0-3", "0-4"));
+    assertThat(
+        topics,
+        Matchers.contains(
+            "kafka-topic-1", "kafka-topic-1", "kafka-topic-1", "kafka-topic-1", "kafka-topic-1"));
+    assertThat(
+        data, Matchers.contains("message-0", "message-1", "message-2", "message-3", "message-4"));
 
     verify(statisticsManager, times(5))
         .computePublish(
             eq("projects/project-1/topics/topic-1"),
+            argThat(message -> message.toStringUtf8().matches(MESSAGE_CONTENT_REGEX)),
+            anyLong());
+    verify(statisticsManager, never()).computePublishError(anyString());
+  }
+
+  @Test
+  public void publish_implicitKafkaTopic() {
+    blockingStub.createTopic(
+        Topic.newBuilder().setName("projects/project-1/topics/implicit-kafka-topic").build());
+
+    int messages = 5;
+    PublishRequest request =
+        PublishRequest.newBuilder()
+            .setTopic("projects/project-1/topics/implicit-kafka-topic")
+            .addAllMessages(generatePubsubMessages(messages))
+            .build();
+
+    MockProducer<String, ByteBuffer> mockProducer = startPublishExecutor(messages);
+
+    PublishResponse response = blockingStub.publish(request);
+    List<String> topics = new ArrayList<>();
+    List<String> data = new ArrayList<>();
+    for (ProducerRecord<String, ByteBuffer> producerRecord : mockProducer.history()) {
+      topics.add(producerRecord.topic());
+      data.add(UTF_8.decode(producerRecord.value()).toString());
+    }
+
+    assertThat(response.getMessageIdsList(), Matchers.contains("0-0", "0-1", "0-2", "0-3", "0-4"));
+    assertThat(
+        topics,
+        Matchers.contains(
+            "implicit-kafka-topic",
+            "implicit-kafka-topic",
+            "implicit-kafka-topic",
+            "implicit-kafka-topic",
+            "implicit-kafka-topic"));
+    assertThat(
+        data, Matchers.contains("message-0", "message-1", "message-2", "message-3", "message-4"));
+
+    verify(statisticsManager, times(5))
+        .computePublish(
+            eq("projects/project-1/topics/implicit-kafka-topic"),
             argThat(message -> message.toStringUtf8().matches(MESSAGE_CONTENT_REGEX)),
             anyLong());
     verify(statisticsManager, never()).computePublishError(anyString());

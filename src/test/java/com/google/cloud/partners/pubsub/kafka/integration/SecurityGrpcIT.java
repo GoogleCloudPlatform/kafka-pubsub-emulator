@@ -20,7 +20,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import com.google.cloud.partners.pubsub.kafka.integration.util.BaseIT;
-import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
 import com.google.cloud.pubsub.v1.Publisher;
 import com.google.cloud.pubsub.v1.Subscriber;
 import com.google.protobuf.ByteString;
@@ -36,7 +35,7 @@ import org.junit.Test;
 
 public class SecurityGrpcIT extends BaseIT {
 
-  private static final String TOPIC = "secured-server";
+  private static final String SUBSCRIPTION = "subscription-to-publish-and-streaming-pull";
 
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
@@ -50,8 +49,6 @@ public class SecurityGrpcIT extends BaseIT {
     assertTrue(USE_SSL);
     assertTrue(BaseIT.USE_SSL);
 
-    SubscriptionProperties subscriptionProperties = getSubscriptionPropertiesByTopic(TOPIC);
-
     String messageData = "security-test-" + System.currentTimeMillis();
 
     CountDownLatch messageToPublish = new CountDownLatch(1);
@@ -60,11 +57,11 @@ public class SecurityGrpcIT extends BaseIT {
     List<String> publishedIds = new ArrayList<>();
 
     Map<String, Integer> receivedIds = new ConcurrentHashMap<>();
-    Publisher publisher = getPublisher(subscriptionProperties);
+    Publisher publisher = getPublisher(SSL_TOPIC);
 
     Subscriber subscriber =
         getSubscriber(
-            subscriptionProperties,
+            SUBSCRIPTION,
             (message, consumer) -> {
               consumer.ack();
               if (messageData.equals(message.getData().toStringUtf8())) {

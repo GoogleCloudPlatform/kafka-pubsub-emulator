@@ -11,6 +11,7 @@ import com.google.pubsub.v1.Subscription;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import org.hamcrest.Matchers;
 import org.junit.Rule;
 import org.junit.Test;
@@ -23,11 +24,10 @@ public class FileConfigurationRepositoryTest {
   @Rule public ExpectedException expectedException = ExpectedException.none();
 
   @Test
-  public void load() throws IOException {
-    File file = temporaryFolder.newFile();
-    Files.write(file.toPath(), TestHelpers.CONFIG.getBytes(UTF_8));
-
-    ConfigurationRepository configurationRepository = FileConfigurationRepository.create(file);
+  public void load() {
+    ConfigurationRepository configurationRepository =
+        FileConfigurationRepository.create(
+            new File(ClassLoader.getSystemResource(TestHelpers.CONFIG_FILE).getPath()));
     assertThat(configurationRepository.getTopics("projects/project-1"), Matchers.hasSize(2));
     assertThat(configurationRepository.getTopics("projects/project-2"), Matchers.hasSize(2));
     assertThat(configurationRepository.getSubscriptions("projects/project-1"), Matchers.hasSize(4));
@@ -64,7 +64,10 @@ public class FileConfigurationRepositoryTest {
   @Test
   public void save() throws IOException {
     File file = temporaryFolder.newFile();
-    Files.write(file.toPath(), TestHelpers.CONFIG.getBytes(UTF_8));
+    Files.copy(
+        new File(ClassLoader.getSystemResource(TestHelpers.CONFIG_FILE).getPath()).toPath(),
+        file.toPath(),
+        StandardCopyOption.REPLACE_EXISTING);
 
     ConfigurationRepository configurationRepository = FileConfigurationRepository.create(file);
 
@@ -73,14 +76,17 @@ public class FileConfigurationRepositoryTest {
 
     configurationRepository.save();
     String content = String.join("\n", Files.readAllLines(file.toPath(), UTF_8));
-    assertThat(content, Matchers.equalTo(TestHelpers.CONFIG));
+    assertThat(content, Matchers.equalTo(TestHelpers.getTestConfigJson()));
   }
 
   @Test
   public void save_afterChanges()
       throws IOException, ConfigurationAlreadyExistsException, ConfigurationNotFoundException {
     File file = temporaryFolder.newFile();
-    Files.write(file.toPath(), TestHelpers.CONFIG.getBytes(UTF_8));
+    Files.copy(
+        new File(ClassLoader.getSystemResource(TestHelpers.CONFIG_FILE).getPath()).toPath(),
+        file.toPath(),
+        StandardCopyOption.REPLACE_EXISTING);
 
     ConfigurationRepository configurationRepository = FileConfigurationRepository.create(file);
 
@@ -113,13 +119,13 @@ public class FileConfigurationRepositoryTest {
                 + "  \"kafka\": {\n"
                 + "    \"bootstrapServers\": [\"server1:2192\", \"server2:2192\"],\n"
                 + "    \"producerProperties\": {\n"
-                + "      \"max.poll.records\": \"1000\"\n"
-                + "    },\n"
-                + "    \"producerExecutors\": 4,\n"
-                + "    \"consumerProperties\": {\n"
                 + "      \"linger.ms\": \"5\",\n"
                 + "      \"batch.size\": \"1000000\",\n"
                 + "      \"buffer.memory\": \"32000000\"\n"
+                + "    },\n"
+                + "    \"producerExecutors\": 4,\n"
+                + "    \"consumerProperties\": {\n"
+                + "      \"max.poll.records\": \"1000\"\n"
                 + "    },\n"
                 + "    \"consumersPerSubscription\": 4\n"
                 + "  },\n"
@@ -185,7 +191,10 @@ public class FileConfigurationRepositoryTest {
   @Test
   public void save_fileIsReadOnly() throws IOException {
     File file = temporaryFolder.newFile();
-    Files.write(file.toPath(), TestHelpers.CONFIG.getBytes(UTF_8));
+    Files.copy(
+        new File(ClassLoader.getSystemResource(TestHelpers.CONFIG_FILE).getPath()).toPath(),
+        file.toPath(),
+        StandardCopyOption.REPLACE_EXISTING);
     file.setWritable(false);
 
     ConfigurationRepository configurationRepository = FileConfigurationRepository.create(file);

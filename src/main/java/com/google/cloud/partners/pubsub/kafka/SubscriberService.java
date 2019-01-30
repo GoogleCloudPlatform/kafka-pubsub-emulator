@@ -78,14 +78,16 @@ class SubscriberService extends SubscriberImplBase {
     this.subscriptionManagerFactory = subscriptionManagerFactory;
 
     subscriptions =
-        configurationRepository.getProjects().stream()
+        configurationRepository
+            .getProjects()
+            .stream()
             .flatMap(p -> configurationRepository.getSubscriptions(p).stream())
             .collect(
                 Collectors.toConcurrentMap(
                     Subscription::getName,
                     subscription -> {
                       SubscriptionManager sm = subscriptionManagerFactory.create(subscription);
-                      sm.startAsync();
+                      sm.startAsync().awaitRunning();
                       return sm;
                     }));
     LOGGER.info("Created " + subscriptions.size() + " SubscriptionManagers");
@@ -225,7 +227,8 @@ class SubscriberService extends SubscriberImplBase {
 
   private List<ReceivedMessage> buildReceivedMessageList(
       String subscriptionName, List<PubsubMessage> pubsubMessages) {
-    return pubsubMessages.stream()
+    return pubsubMessages
+        .stream()
         .map(
             m -> {
               statisticsManager.computeSubscriber(
@@ -414,11 +417,9 @@ class SubscriberService extends SubscriberImplBase {
 
           if (response.getReceivedMessagesCount() > 0) {
             LOGGER.fine(
-                "StreamingPull "
-                    + streamId
-                    + " returning "
-                    + response.getReceivedMessagesCount()
-                    + " messages");
+                String.format(
+                    "StreamingPull %s returning %d messages",
+                    streamId, response.getReceivedMessagesCount()));
             responseObserver.onNext(response);
           }
         } else {

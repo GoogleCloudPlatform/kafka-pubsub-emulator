@@ -1,0 +1,71 @@
+{
+  "server": {
+    "port": 8080
+  },
+  "kafka": {
+    "bootstrapServers": [
+      "localhost:9094",
+      "localhost:9095",
+      "localhost:9096"
+    ],
+    "producerExecutors": 4,
+    "producerProperties": {
+      "linger.ms": "200",
+      "batch.size": "10000",
+      "buffer.memory": "32000000"
+    },
+    "consumerProperties": {
+      "max.poll.records": "1000"
+    },
+    "consumersPerSubscription": 4
+  },
+  "pubsub": {
+    "projects": [
+      {
+        "name": "performance-testing",
+        "topics": [
+          {
+            "name": "performance-testing-8p",
+            "kafkaTopic": "performance-testing-8p",
+            "subscriptions": [
+              {
+                "name": "subscription-performance-testing-8p",
+                "ackDeadlineSeconds": 10
+              }
+            ]
+          },
+          {
+            "name": "performance-testing-32p",
+            "kafkaTopic": "performance-testing-32p",
+            "subscriptions": [
+              {
+                "name": "subscription-performance-testing-32p",
+                "ackDeadlineSeconds": 10
+              }
+            ]
+          },
+          {
+            "name": "performance-testing-64p",
+            "kafkaTopic": "performance-testing-64p",
+            "subscriptions": [
+              {
+                "name": "subscription-performance-testing-64p",
+                "ackDeadlineSeconds": 10
+              }
+            ]
+          },
+          {
+            "name": "performance-testing-128p",
+            "kafkaTopic": "performance-testing-128p",
+            "subscriptions": [
+              {
+                "name": "subscription-performance-testing-128p",
+                "ackDeadlineSeconds": 10
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
