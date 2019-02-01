@@ -25,6 +25,17 @@
       <version>1</version>
     </dependency>
     <dependency>
+      <groupId>com.google.flogger</groupId>
+      <artifactId>flogger</artifactId>
+      <version>0.3.1</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.flogger</groupId>
+      <artifactId>flogger-system-backend</artifactId>
+      <version>0.3.1</version>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
       <groupId>com.google.api.grpc</groupId>
       <artifactId>proto-google-common-protos</artifactId>
       <version>1.0.0</version>
@@ -53,11 +64,6 @@
       <groupId>com.google.api</groupId>
       <artifactId>api-common</artifactId>
       <version>1.7.0</version>
-    </dependency>
-    <dependency>
-      <groupId>org.slf4j</groupId>
-      <artifactId>jul-to-slf4j</artifactId>
-      <version>1.7.25</version>
     </dependency>
     <dependency>
       <groupId>org.apache.kafka</groupId>

@@ -394,8 +394,10 @@ public class PublisherServiceTest {
           MockProducer<String, ByteBuffer> producer =
               kafkaClientFactory.getCreatedProducers().get(0);
           while (producer.history().size() < messages) {
-            producer.errorNext(new RuntimeException("Send Operation Failed"));
             Thread.yield();
+          }
+          for (int i = 0; i < messages; i++) {
+            producer.errorNext(new RuntimeException("Send Operation Failed"));
           }
         });
 

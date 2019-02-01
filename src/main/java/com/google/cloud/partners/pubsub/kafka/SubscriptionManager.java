@@ -18,6 +18,7 @@ package com.google.cloud.partners.pubsub.kafka;
 
 import static com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.KAFKA_TOPIC;
 
+import com.google.common.flogger.FluentLogger;
 import com.google.common.util.concurrent.AbstractScheduledService;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Timestamp;
@@ -41,8 +42,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -64,9 +63,9 @@ import org.apache.kafka.common.header.Headers;
  */
 class SubscriptionManager extends AbstractScheduledService {
 
-  private static final Logger LOGGER = Logger.getLogger(SubscriptionManager.class.getName());
   private static final int COMMIT_DELAY = 2; // 2 seconds
   private static final long POLL_TIMEOUT = 5000; // 5 seconds
+  private static final FluentLogger logger = FluentLogger.forEnclosingClass();
 
   private final String kafkaTopicName;
   private final KafkaClientFactory kafkaClientFactory;
@@ -234,6 +233,9 @@ class SubscriptionManager extends AbstractScheduledService {
     List<PartitionInfo> partitionInfo = first.partitionsFor(kafkaTopicName);
 
     int totalConsumers = Math.min(partitionInfo.size(), consumerExecutors);
+    logger.atFine().log(
+        "Assigning %d KafkaConsumers to %d partitions of Kafka topic %s for Subscription %s",
+        totalConsumers, partitionInfo.size(), kafkaTopicName, subscription.getName());
     for (int i = 0; i < totalConsumers; i++) {
       Consumer<String, ByteBuffer> consumer =
           i == 0 ? first : kafkaClientFactory.createConsumer(subscription.getName());
@@ -248,17 +250,14 @@ class SubscriptionManager extends AbstractScheduledService {
       Map<TopicPartition, Long> endOffsets = consumer.endOffsets(partitionSet);
       for (TopicPartition tp : partitionSet) {
         committedOffsets.put(tp, consumer.committed(tp));
-        LOGGER.fine(
-            String.format(
-                "%s assigned KafkaConsumer %d to %s:%d (End: %d, Committed %d)",
-                subscription.getName(),
-                consumerIndex,
-                tp.topic(),
-                tp.partition(),
-                endOffsets.get(tp),
-                Optional.ofNullable(consumer.committed(tp))
-                    .map(OffsetAndMetadata::offset)
-                    .orElse(0L)));
+        logger.atFine().log(
+            "%s assigned KafkaConsumer %d to %s:%d (End: %d, Committed %d)",
+            subscription.getName(),
+            consumerIndex,
+            tp.topic(),
+            tp.partition(),
+            endOffsets.get(tp),
+            Optional.ofNullable(consumer.committed(tp)).map(OffsetAndMetadata::offset).orElse(0L));
       }
       kafkaConsumers.add(new SynchronizedConsumer(consumer));
     }
@@ -272,7 +271,7 @@ class SubscriptionManager extends AbstractScheduledService {
       consumer.runWithConsumer(Consumer::close);
       closed++;
     }
-    LOGGER.info("Closed " + closed + " KafkaConsumers for " + subscription.getName());
+    logger.atInfo().log("Closed %d KafkaConsumers for %s", closed, subscription.getName());
   }
 
   @Override
@@ -325,24 +324,29 @@ class SubscriptionManager extends AbstractScheduledService {
       if (shouldCommit) {
         try {
           SynchronizedConsumer consumer = kafkaConsumers.get(i);
+          logger.atFine().log(
+              "%s KafkaConsumer %d commiting %s",
+              subscription.getName(), i, consumerCommits.entrySet());
           consumer.runWithConsumer(c -> c.commitSync(consumerCommits));
           for (Map.Entry<TopicPartition, OffsetAndMetadata> entry : consumerCommits.entrySet()) {
-            LOGGER.fine(
-                String.format(
-                    "%s KafkaConsumer %d seeking to newly committed offset %d of %s:%d",
-                    subscription.getName(),
-                    i,
-                    entry.getValue().offset(),
-                    entry.getKey().topic(),
-                    entry.getKey().partition()));
+            logger.atFine().log(
+                "%s KafkaConsumer %d seeking to newly committed offset %d of %s:%d",
+                subscription.getName(),
+                i,
+                entry.getValue().offset(),
+                entry.getKey().topic(),
+                entry.getKey().partition());
             consumer.runWithConsumer(c -> c.seek(entry.getKey(), entry.getValue().offset()));
             purgeAcknowledged(entry.getKey().partition(), entry.getValue().offset());
           }
           committedOffsets.putAll(consumerCommits);
         } catch (KafkaException e) {
           // TODO: Handle this which might include creating a new consumer
-          LOGGER.log(Level.WARNING, "Unexpected KafkaException during commit", e);
+          logger.atWarning().withCause(e).log("Unexpected KafkaException during commit");
         }
+      } else {
+        logger.atFiner().log(
+            "No offsets to commit for %s KafkaConsumer %d", subscription.getName(), i);
       }
     }
   }
@@ -361,7 +365,7 @@ class SubscriptionManager extends AbstractScheduledService {
       polled = kafkaConsumers.get(consumerIndex).getWithConsumer(c -> c.poll(pollTimeout));
     } catch (KafkaException e) {
       // TODO: Handle this which might include creating a new consumer
-      LOGGER.log(Level.WARNING, "Unexpected KafkaException during poll", e);
+      logger.atWarning().withCause(e).log("Unexpected KafkaException during poll");
     }
 
     if (polled != null) {
@@ -370,10 +374,9 @@ class SubscriptionManager extends AbstractScheduledService {
         newMessages++;
         queueSizeBytes.addAndGet(record.serializedValueSize());
       }
-      LOGGER.fine(
-          String.format(
-              "poll(%d) from consumer %d returned %d messages (buffer=%d, bufferBytes=%d)",
-              pollTimeout, consumerIndex, newMessages, buffer.size(), queueSizeBytes.get()));
+      logger.atFine().log(
+          "poll(%d) from consumer %d returned %d messages (buffer=%d, bufferBytes=%d)",
+          pollTimeout, consumerIndex, newMessages, buffer.size(), queueSizeBytes.get());
     }
   }
 
@@ -406,7 +409,7 @@ class SubscriptionManager extends AbstractScheduledService {
         break;
       }
     }
-    LOGGER.fine("Dequeued " + dequeued + " messages from buffer");
+    logger.atFine().log("Dequeued %d messages from buffer", dequeued);
   }
 
   private Map<String, String> buildAttributesMap(Headers headers) {
@@ -432,10 +435,9 @@ class SubscriptionManager extends AbstractScheduledService {
             .collect(Collectors.toList());
     purgeList.forEach(outstandingMessages::remove);
 
-    LOGGER.fine(
-        String.format(
-            "Purged %d committed messages from partition %d (%d outstanding)",
-            purgeList.size(), partition, outstandingMessages.size()));
+    logger.atFine().log(
+        "Purged %d committed messages from partition %d (%d outstanding)",
+        purgeList.size(), partition, outstandingMessages.size());
   }
 
   private Optional<OutstandingMessage> getOutstandingIfNotExpired(String messageId) {

@@ -2,6 +2,7 @@ package com.google.cloud.partners.pubsub.kafka.config;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+import com.google.common.flogger.FluentLogger;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import java.io.File;
@@ -19,14 +20,18 @@ import javax.inject.Singleton;
 @Singleton
 public class FileConfigurationRepository extends ConfigurationRepository {
 
-  private final File file;
+  private static final FluentLogger logger = FluentLogger.forEnclosingClass();
 
-  private FileConfigurationRepository(Configuration configuration, File file) {
+  private final File file;
+  private final boolean writeOnSave;
+
+  private FileConfigurationRepository(Configuration configuration, File file, boolean writeOnSave) {
     super(configuration);
     this.file = file;
+    this.writeOnSave = writeOnSave;
   }
 
-  public static ConfigurationRepository create(File file) {
+  public static ConfigurationRepository create(File file, boolean writeOnSave) {
     String json;
     try {
       json = String.join("\n", Files.readAllLines(file.toPath(), UTF_8));
@@ -38,7 +43,7 @@ public class FileConfigurationRepository extends ConfigurationRepository {
     try {
       Configuration.Builder builder = Configuration.newBuilder();
       JsonFormat.parser().merge(json, builder);
-      return new FileConfigurationRepository(builder.build(), file);
+      return new FileConfigurationRepository(builder.build(), file, writeOnSave);
     } catch (InvalidProtocolBufferException e) {
       throw new IllegalArgumentException(
           "Invalid Configuration read from " + file.getAbsolutePath(), e);
@@ -47,15 +52,16 @@ public class FileConfigurationRepository extends ConfigurationRepository {
 
   @Override
   void save() {
-    if (!file.canWrite()) {
-      throw new UnsupportedOperationException(
-          "Configuration cannot be saved. " + file.getAbsolutePath() + " is not writeable.");
-    }
-    try {
-      Files.write(file.toPath(), JsonFormat.printer().print(getConfiguration()).getBytes(UTF_8));
-    } catch (IOException e) {
-      throw new IllegalStateException(
-          "Unexpected error when saving Configuration to " + file.getAbsolutePath() + ".", e);
+    if (writeOnSave) {
+      try {
+        Files.write(file.toPath(), JsonFormat.printer().print(getConfiguration()).getBytes(UTF_8));
+      } catch (IOException e) {
+        throw new IllegalStateException(
+            "Unexpected error when saving Configuration to " + file.getAbsolutePath() + ".", e);
+      }
+    } else {
+      logger.atInfo().log(
+          "%s is not configured for writing on configuration changes", file.getAbsolutePath());
     }
   }
 }

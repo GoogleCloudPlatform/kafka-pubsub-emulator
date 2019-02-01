@@ -155,6 +155,7 @@ public abstract class ConfigurationRepository {
       topic = topic.toBuilder().putLabels(KAFKA_TOPIC, projectTopicName.getTopic()).build();
     }
     topicsByProject.put(ProjectName.of(projectTopicName.getProject()).toString(), topic);
+    save();
   }
 
   /** Updates the managed Configuration when a Topic is deleted. */
@@ -168,6 +169,7 @@ public abstract class ConfigurationRepository {
             () ->
                 new ConfigurationNotFoundException(
                     "Topic " + projectTopicName.toString() + " does not exist"));
+    save();
   }
 
   /** Updates the managed Configuration when a new Subscription is created. */
@@ -194,6 +196,7 @@ public abstract class ConfigurationRepository {
     }
     subscriptionsByProject.put(
         ProjectName.of(projectSubscriptionName.getProject()).toString(), builder.build());
+    save();
   }
 
   /** Updates the managed Configuration when a Subscription is deleted. */
@@ -211,6 +214,7 @@ public abstract class ConfigurationRepository {
             () ->
                 new ConfigurationNotFoundException(
                     "Subscription " + projectSubscriptionName.toString() + " does not exist"));
+    save();
   }
 
   /**
@@ -271,7 +275,6 @@ public abstract class ConfigurationRepository {
 
   /** Thrown when the specified Project or Topic being requested is not found. */
   public static final class ConfigurationNotFoundException extends Exception {
-
     ConfigurationNotFoundException(String message) {
       super(message);
     }
@@ -279,7 +282,6 @@ public abstract class ConfigurationRepository {
 
   /** Thrown when the specified Project or Topic being requested already exists. */
   public static final class ConfigurationAlreadyExistsException extends Exception {
-
     ConfigurationAlreadyExistsException(String message) {
       super(message);
     }
