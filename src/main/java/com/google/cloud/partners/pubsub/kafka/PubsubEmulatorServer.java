@@ -23,6 +23,7 @@ import com.beust.jcommander.Parameter;
 import com.beust.jcommander.Parameters;
 import com.google.cloud.partners.pubsub.kafka.common.AdminGrpc;
 import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository;
+import com.google.common.flogger.FluentLogger;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.pubsub.v1.PublisherGrpc;
@@ -32,8 +33,6 @@ import io.grpc.ServerBuilder;
 import io.grpc.services.HealthStatusManager;
 import java.io.File;
 import java.io.IOException;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -43,7 +42,7 @@ import javax.inject.Singleton;
 @Singleton
 public class PubsubEmulatorServer {
 
-  private static final Logger LOGGER = Logger.getLogger(PubsubEmulatorServer.class.getName());
+  private static final FluentLogger logger = FluentLogger.forEnclosingClass();
   private static final int MAX_MESSAGE_SIZE = 1000 * 1000 * 10; // 10MB
 
   private final PublisherService publisher;
@@ -91,13 +90,14 @@ public class PubsubEmulatorServer {
       jCommander.usage();
       return;
     }
-    Injector injector = Guice.createInjector(new DefaultModule(argObject.configurationFile));
+    Injector injector =
+        Guice.createInjector(new DefaultModule(argObject.configurationFile, argObject.writeOnSave));
     PubsubEmulatorServer pubsubEmulatorServer = injector.getInstance(PubsubEmulatorServer.class);
     try {
       pubsubEmulatorServer.start();
       pubsubEmulatorServer.blockUntilShutdown();
     } catch (IOException | InterruptedException e) {
-      LOGGER.log(Level.SEVERE, "Unexpected server failure", e);
+      logger.atSevere().withCause(e).log("Unexpected server failure");
     }
   }
 
@@ -105,7 +105,7 @@ public class PubsubEmulatorServer {
   public void start() throws IOException {
     server.start();
     startHealthcheckServices();
-    LOGGER.info("PubsubEmulatorServer started on port " + server.getPort());
+    logger.atInfo().log("PubsubEmulatorServer started on port %d", server.getPort());
     Runtime.getRuntime()
         .addShutdownHook(
             new Thread(
@@ -141,18 +141,24 @@ public class PubsubEmulatorServer {
     healthStatusManager.setStatus(AdminGrpc.SERVICE_NAME, SERVING);
   }
 
-  /** Command-line arguments. */
   @Parameters(separators = "=")
   private static final class Args {
-    @Parameter(
-        names = {"--help"},
-        help = true)
-    private boolean help = false;
 
+    /** Command-line arguments. */
     @Parameter(
         names = {"-c", "--configuration-file"},
         required = true,
         description = "Path to a JSON-formatted configuration file.")
     private String configurationFile;
+
+    @Parameter(
+        names = {"-s", "--save-configuration-changes"},
+        description = "Save configuration changes made by clients back to configuration file.")
+    private boolean writeOnSave = true;
+
+    @Parameter(
+        names = {"--help"},
+        help = true)
+    private boolean help = false;
   }
 }

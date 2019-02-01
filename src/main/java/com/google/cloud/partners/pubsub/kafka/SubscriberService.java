@@ -21,6 +21,7 @@ import static java.util.Objects.isNull;
 import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository;
 import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.ConfigurationAlreadyExistsException;
 import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.ConfigurationNotFoundException;
+import com.google.common.flogger.FluentLogger;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
 import com.google.protobuf.Empty;
 import com.google.pubsub.v1.AcknowledgeRequest;
@@ -47,7 +48,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -60,8 +60,8 @@ import javax.inject.Singleton;
 @Singleton
 class SubscriberService extends SubscriberImplBase {
 
-  private static final Logger LOGGER = Logger.getLogger(SubscriberService.class.getName());
   private static final AtomicInteger STREAMING_PULL_ID = new AtomicInteger();
+  private static final FluentLogger logger = FluentLogger.forEnclosingClass();
 
   private final Map<String, SubscriptionManager> subscriptions;
   private final StatisticsManager statisticsManager;
@@ -87,10 +87,13 @@ class SubscriberService extends SubscriberImplBase {
                     Subscription::getName,
                     subscription -> {
                       SubscriptionManager sm = subscriptionManagerFactory.create(subscription);
+                      logger.atFine().log(
+                          "Starting Subscription Manager for %s", subscription.getName());
                       sm.startAsync().awaitRunning();
+                      logger.atInfo().log(
+                          "Started Subscription Manager for %s", subscription.getName());
                       return sm;
                     }));
-    LOGGER.info("Created " + subscriptions.size() + " SubscriptionManagers");
   }
 
   /**
@@ -99,21 +102,33 @@ class SubscriberService extends SubscriberImplBase {
    * KafkaConsumers.
    */
   public void shutdown() {
-    subscriptions.values().forEach(sm -> sm.stopAsync().awaitTerminated());
+    subscriptions
+        .values()
+        .forEach(
+            sm -> {
+              logger.atFine().log(
+                  "Stopping Subscription Manager for %s", sm.getSubscription().getName());
+              sm.stopAsync().awaitTerminated();
+              logger.atFine().log(
+                  "Stopped Subscription Manager for %s", sm.getSubscription().getName());
+            });
   }
 
   @Override
   public void createSubscription(
       Subscription request, StreamObserver<Subscription> responseObserver) {
     try {
+      logger.atFine().log("Creating Subscription %s", request);
       configurationRepository.createSubscription(request);
       subscriptions.put(request.getName(), subscriptionManagerFactory.create(request));
       statisticsManager.addSubscriberInformation(request);
       responseObserver.onNext(request);
       responseObserver.onCompleted();
     } catch (ConfigurationAlreadyExistsException e) {
+      logger.atWarning().withCause(e).log("Subscription already exists");
       responseObserver.onError(Status.ALREADY_EXISTS.withCause(e).asException());
     } catch (ConfigurationNotFoundException e) {
+      logger.atWarning().withCause(e).log("%s is not a valid Topic", request.getTopic());
       responseObserver.onError(Status.NOT_FOUND.withCause(e).asException());
     }
   }
@@ -122,12 +137,16 @@ class SubscriberService extends SubscriberImplBase {
   public void deleteSubscription(
       DeleteSubscriptionRequest request, StreamObserver<Empty> responseObserver) {
     try {
+
+      logger.atFine().log("Deleting Subscription %s", request);
       configurationRepository.deleteSubscription(request.getSubscription());
       subscriptions.get(request.getSubscription()).stopAsync().awaitTerminated();
       subscriptions.remove(request.getSubscription());
       responseObserver.onNext(Empty.newBuilder().build());
       responseObserver.onCompleted();
     } catch (ConfigurationNotFoundException e) {
+      logger.atWarning().withCause(e).log(
+          "%s is not a valid Subscription", request.getSubscription());
       responseObserver.onError(Status.NOT_FOUND.withCause(e).asException());
     }
   }
@@ -136,6 +155,7 @@ class SubscriberService extends SubscriberImplBase {
   public void listSubscriptions(
       ListSubscriptionsRequest request,
       StreamObserver<ListSubscriptionsResponse> responseObserver) {
+    logger.atFine().log("Listing Subscriptions for %s", request);
     PaginationManager<Subscription> paginationManager =
         new PaginationManager<>(
             configurationRepository.getSubscriptions(request.getProject()), Subscription::getName);
@@ -152,11 +172,12 @@ class SubscriberService extends SubscriberImplBase {
   @Override
   public void getSubscription(
       GetSubscriptionRequest request, StreamObserver<Subscription> responseObserver) {
+    logger.atFine().log("Getting Subscription %s", request);
     Optional<Subscription> subscription =
         configurationRepository.getSubscriptionByName(request.getSubscription());
     if (!subscription.isPresent()) {
       String message = request.getSubscription() + " is not a valid Subscription";
-      LOGGER.warning(message);
+      logger.atWarning().log(message);
       responseObserver.onError(Status.NOT_FOUND.withDescription(message).asException());
     } else {
       responseObserver.onNext(subscription.get());
@@ -166,10 +187,11 @@ class SubscriberService extends SubscriberImplBase {
 
   @Override
   public void pull(PullRequest request, StreamObserver<PullResponse> responseObserver) {
+    logger.atFine().log("Pulling messages %s", request);
     SubscriptionManager subscriptionManager = subscriptions.get(request.getSubscription());
     if (subscriptionManager == null) {
       String message = request.getSubscription() + " is not a valid Subscription";
-      LOGGER.warning(message);
+      logger.atWarning().log(message);
       responseObserver.onError(Status.NOT_FOUND.withDescription(message).asException());
     } else {
       PullResponse response =
@@ -180,7 +202,7 @@ class SubscriberService extends SubscriberImplBase {
                       subscriptionManager.pull(
                           request.getMaxMessages(), request.getReturnImmediately())))
               .build();
-      LOGGER.fine("Returning " + response.getReceivedMessagesCount() + " messages");
+      logger.atFine().log("Returning %d messages", response.getReceivedMessagesCount());
       responseObserver.onNext(response);
       responseObserver.onCompleted();
     }
@@ -188,14 +210,15 @@ class SubscriberService extends SubscriberImplBase {
 
   @Override
   public void acknowledge(AcknowledgeRequest request, StreamObserver<Empty> responseObserver) {
+    logger.atFine().log("Acknowledging messages %s", request);
     SubscriptionManager subscriptionManager = subscriptions.get(request.getSubscription());
     if (subscriptionManager == null) {
       String message = request.getSubscription() + " is not a valid Subscription";
-      LOGGER.warning(message);
+      logger.atWarning().log(message);
       responseObserver.onError(Status.NOT_FOUND.withDescription(message).asException());
     } else {
       List<String> ackIds = subscriptionManager.acknowledge(request.getAckIdsList());
-      LOGGER.fine("Successfully acknowledged " + ackIds.size() + " messages");
+      logger.atFine().log("Successfully acknowledged %d messages", ackIds.size());
       responseObserver.onNext(Empty.getDefaultInstance());
       responseObserver.onCompleted();
     }
@@ -204,16 +227,17 @@ class SubscriberService extends SubscriberImplBase {
   @Override
   public void modifyAckDeadline(
       ModifyAckDeadlineRequest request, StreamObserver<Empty> responseObserver) {
+    logger.atFine().log("Modifying acknowledgement deadline for messages %s", request);
     SubscriptionManager subscriptionManager = subscriptions.get(request.getSubscription());
     if (subscriptionManager == null) {
       String message = request.getSubscription() + " is not a valid Subscription";
-      LOGGER.warning(message);
+      logger.atWarning().log(message);
       responseObserver.onError(Status.NOT_FOUND.withDescription(message).asException());
     } else {
       List<String> ackIds =
           subscriptionManager.modifyAckDeadline(
               request.getAckIdsList(), request.getAckDeadlineSeconds());
-      LOGGER.fine("Successfully modified ack deadline for " + ackIds.size() + " messages");
+      logger.atFine().log("Successfully modified ack deadline for %d messages", ackIds.size());
       responseObserver.onNext(Empty.getDefaultInstance());
       responseObserver.onCompleted();
     }
@@ -267,7 +291,7 @@ class SubscriberService extends SubscriberImplBase {
           });
       this.responseObserver.setOnCancelHandler(
           () -> {
-            LOGGER.info("Client cancelled StreamingPull " + streamId);
+            logger.atInfo().log("Client cancelled StreamingPull %s", streamId);
             stopIfRunning();
           });
     }
@@ -289,21 +313,15 @@ class SubscriberService extends SubscriberImplBase {
     public void onError(Throwable throwable) {
       // This doesn't seem to occur given that the standard client uses a cancel message onError
       if (!Status.fromThrowable(throwable).getCode().equals(Status.CANCELLED.getCode())) {
-        LOGGER.warning(
-            String.format(
-                "Client encountered error during StreamingPull %s: %s",
-                streamId, throwable.getMessage()));
+        logger.atWarning().withCause(throwable).log(
+            "Client encountered error during StreamingPull %s", streamId);
         stopIfRunning();
       }
     }
 
     @Override
     public void onCompleted() {
-      LOGGER.info(
-          subscriptionManager.getSubscription().getName()
-              + " StreamingPull "
-              + streamId
-              + " closed by client");
+      logger.atInfo().log("StreamingPull %s closed by client", streamId);
       stopIfRunning();
       responseObserver.onCompleted();
     }
@@ -321,28 +339,26 @@ class SubscriberService extends SubscriberImplBase {
         subscriptionManager = subscriptions.get(request.getSubscription());
         if (subscriptionManager == null) {
           String message = request.getSubscription() + " is not a valid Subscription";
-          LOGGER.warning(message);
+          logger.atWarning().log(message);
           throw Status.NOT_FOUND.withDescription(message).asException();
         }
         streamId = request.getSubscription() + "-" + STREAMING_PULL_ID.getAndIncrement();
         streamAckDeadlineSecs = request.getStreamAckDeadlineSeconds();
         if (streamAckDeadlineSecs < 10 || streamAckDeadlineSecs > 600) {
-          LOGGER.warning(
-              String.format(
-                  "%s is not a valid Stream ack deadline, reverting to default for %s (%d)s",
-                  request.getStreamAckDeadlineSeconds(),
-                  subscriptionManager.getSubscription().getName(),
-                  subscriptionManager.getSubscription().getAckDeadlineSeconds()));
+          logger.atWarning().log(
+              "%s is not a valid Stream ack deadline, reverting to default for %s (%d)s",
+              request.getStreamAckDeadlineSeconds(),
+              subscriptionManager.getSubscription().getName(),
+              subscriptionManager.getSubscription().getAckDeadlineSeconds());
           streamAckDeadlineSecs = subscriptionManager.getSubscription().getAckDeadlineSeconds();
         }
-        LOGGER.info(
-            String.format(
-                "%s StreamingPull %s initialized by client",
-                subscriptionManager.getSubscription().getName(), streamId));
+        logger.atInfo().log(
+            "%s StreamingPull %s initialized by client",
+            subscriptionManager.getSubscription().getName(), streamId);
         startAsync().awaitRunning();
       } else if (!request.getSubscription().isEmpty()) {
         String message = "Subscription name can only be specified in first request";
-        LOGGER.warning(message);
+        logger.atWarning().log(message);
         throw Status.INVALID_ARGUMENT.withDescription(message).asException();
       }
     }
@@ -355,13 +371,12 @@ class SubscriberService extends SubscriberImplBase {
     private void processAcks(StreamingPullRequest request) {
       if (request.getAckIdsCount() > 0) {
         List<String> ackIds = subscriptionManager.acknowledge(request.getAckIdsList());
-        LOGGER.fine(
-            String.format(
-                "%s StreamingPull %s successfully acknowledged %d of %d messages",
-                subscriptionManager.getSubscription().getName(),
-                streamId,
-                ackIds.size(),
-                request.getAckIdsCount()));
+        logger.atFine().log(
+            "%s StreamingPull %s successfully acknowledged %d of %d messages",
+            subscriptionManager.getSubscription().getName(),
+            streamId,
+            ackIds.size(),
+            request.getAckIdsCount());
       }
     }
 
@@ -379,7 +394,7 @@ class SubscriberService extends SubscriberImplBase {
               String.format(
                   "Request contained %d modifyAckDeadlineIds but %d modifyDeadlineSeconds",
                   request.getModifyDeadlineAckIdsCount(), request.getModifyDeadlineSecondsCount());
-          LOGGER.warning(message);
+          logger.atWarning().log(message);
           throw Status.INVALID_ARGUMENT.withDescription(message).asException();
         }
 
@@ -390,13 +405,12 @@ class SubscriberService extends SubscriberImplBase {
                   Collections.singletonList(request.getModifyDeadlineAckIds(i)),
                   request.getModifyDeadlineSeconds(i)));
         }
-        LOGGER.fine(
-            String.format(
-                "%s StreamingPull %s modified ack deadlines for %d of %d messages",
-                subscriptionManager.getSubscription().getName(),
-                streamId,
-                modifiedAckIds.size(),
-                request.getAckIdsCount()));
+        logger.atFine().log(
+            "%s StreamingPull %s modified ack deadlines for %d of %d messages",
+            subscriptionManager.getSubscription().getName(),
+            streamId,
+            modifiedAckIds.size(),
+            request.getAckIdsCount());
       }
     }
 
@@ -416,27 +430,23 @@ class SubscriberService extends SubscriberImplBase {
                   .build();
 
           if (response.getReceivedMessagesCount() > 0) {
-            LOGGER.fine(
-                String.format(
-                    "StreamingPull %s returning %d messages",
-                    streamId, response.getReceivedMessagesCount()));
+            logger.atFine().log(
+                "StreamingPull %s returning %d messages",
+                streamId, response.getReceivedMessagesCount());
             responseObserver.onNext(response);
           }
         } else {
           pollDelay = Math.min(pollDelay * 2, MAX_POLL_INTERVAL);
-          LOGGER.fine(
-              String.format(
-                  "StreamingPull %s peer is not ready, increased pollDelay to %d",
-                  streamId, pollDelay));
+          logger.atFine().log(
+              "StreamingPull %s peer is not ready, increased pollDelay to %d", streamId, pollDelay);
         }
         try {
           Thread.sleep(pollDelay);
         } catch (InterruptedException e) {
           stopAsync();
-          LOGGER.severe(
-              String.format(
-                  "%s StreamingPull %s encountered unrecoverable error %s",
-                  subscriptionManager.getSubscription().getName(), streamId, e));
+          logger.atSevere().withCause(e).log(
+              "%s StreamingPull %s encountered unrecoverable error",
+              subscriptionManager.getSubscription().getName(), streamId);
           responseObserver.onError(Status.fromThrowable(e).asException());
         }
       }

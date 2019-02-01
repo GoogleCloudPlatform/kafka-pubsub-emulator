@@ -198,7 +198,7 @@ public abstract class BaseIT {
   private static Injector getInjector() throws IOException {
     if (!USE_SSL) {
       return Guice.createInjector(
-          new DefaultModule(ClassLoader.getSystemResource(CONFIG_FILE).getPath()));
+          new DefaultModule(ClassLoader.getSystemResource(CONFIG_FILE).getPath(), false));
     } else {
       // Build a config, set the fully qualified path to the certs, and save
       File newConfig = TEMPORARY_FOLDER.newFile();
@@ -224,7 +224,7 @@ public abstract class BaseIT {
                       + "\"\n"
                       + "    }")
               .getBytes(UTF_8));
-      return Guice.createInjector(new DefaultModule(newConfig.getAbsolutePath()));
+      return Guice.createInjector(new DefaultModule(newConfig.getAbsolutePath(), false));
     }
   }
 

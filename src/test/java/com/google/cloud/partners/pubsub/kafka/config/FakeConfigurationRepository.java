@@ -2,8 +2,11 @@ package com.google.cloud.partners.pubsub.kafka.config;
 
 import com.google.cloud.partners.pubsub.kafka.config.Server.Security;
 import com.google.common.collect.ImmutableList;
+import com.google.common.flogger.FluentLogger;
 
 public class FakeConfigurationRepository extends ConfigurationRepository {
+
+  private static final FluentLogger logger = FluentLogger.forEnclosingClass();
 
   private static final Configuration CONFIGURATION =
       Configuration.newBuilder()
@@ -103,5 +106,7 @@ public class FakeConfigurationRepository extends ConfigurationRepository {
   }
 
   @Override
-  public void save() {}
+  public void save() {
+    logger.atInfo().log("Saving FakeConfigurationRepository");
+  }
 }

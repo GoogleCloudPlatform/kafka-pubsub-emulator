@@ -21,6 +21,7 @@ import static com.google.cloud.partners.pubsub.kafka.config.ConfigurationReposit
 import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository;
 import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.ConfigurationAlreadyExistsException;
 import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.ConfigurationNotFoundException;
+import com.google.common.flogger.FluentLogger;
 import com.google.protobuf.Empty;
 import com.google.pubsub.v1.DeleteTopicRequest;
 import com.google.pubsub.v1.GetTopicRequest;
@@ -46,7 +47,6 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -64,8 +64,8 @@ import org.apache.kafka.common.header.internals.RecordHeaders;
 @Singleton
 class PublisherService extends PublisherImplBase {
 
-  private static final Logger LOGGER = Logger.getLogger(PublisherService.class.getName());
   private static final int MAX_PUBLISH_WAIT = 9; // seconds, 10s is the default publish RPC timeout
+  private static final FluentLogger logger = FluentLogger.forEnclosingClass();
 
   private final ConfigurationRepository configurationRepository;
   private final List<Producer<String, ByteBuffer>> kafkaProducers = new ArrayList<>();
@@ -83,7 +83,7 @@ class PublisherService extends PublisherImplBase {
     for (int i = 0; i < configurationRepository.getKafka().getProducerExecutors(); i++) {
       kafkaProducers.add(kafkaClientFactory.createProducer());
     }
-    LOGGER.info("Created " + kafkaProducers.size() + " KafkaProducers");
+    logger.atInfo().log("Created %d KafkaProducers", kafkaProducers.size());
     nextProducerIndex = new AtomicInteger();
   }
 
@@ -92,16 +92,18 @@ class PublisherService extends PublisherImplBase {
     for (Producer<String, ByteBuffer> producer : kafkaProducers) {
       producer.close();
     }
-    LOGGER.info("Closed " + kafkaProducers.size() + " KafkaProducers");
+    logger.atInfo().log("Closed %d KafkaProducers", kafkaProducers.size());
   }
 
   @Override
   public void createTopic(Topic request, StreamObserver<Topic> responseObserver) {
     try {
+      logger.atFine().log("Creating Topic %s", request);
       configurationRepository.createTopic(request);
       responseObserver.onNext(request);
       responseObserver.onCompleted();
     } catch (ConfigurationAlreadyExistsException e) {
+      logger.atWarning().withCause(e).log("Topic already exists");
       responseObserver.onError(Status.ALREADY_EXISTS.withCause(e).asException());
     }
   }
@@ -109,20 +111,23 @@ class PublisherService extends PublisherImplBase {
   @Override
   public void deleteTopic(DeleteTopicRequest request, StreamObserver<Empty> responseObserver) {
     try {
+      logger.atFine().log("Deleting Topic %s", request);
       configurationRepository.deleteTopic(request.getTopic());
       responseObserver.onNext(Empty.getDefaultInstance());
       responseObserver.onCompleted();
     } catch (ConfigurationNotFoundException e) {
+      logger.atWarning().withCause(e).log("%s is not a valid Topic", request.getTopic());
       responseObserver.onError(Status.NOT_FOUND.withCause(e).asException());
     }
   }
 
   @Override
   public void getTopic(GetTopicRequest request, StreamObserver<Topic> responseObserver) {
+    logger.atFine().log("Getting Topic %s", request);
     Optional<Topic> topic = configurationRepository.getTopicByName(request.getTopic());
     if (!topic.isPresent()) {
       String message = request.getTopic() + " is not a valid Topic";
-      LOGGER.warning(message);
+      logger.atWarning().log(message);
       responseObserver.onError(Status.NOT_FOUND.withDescription(message).asException());
     } else {
       responseObserver.onNext(topic.get());
@@ -133,6 +138,7 @@ class PublisherService extends PublisherImplBase {
   @Override
   public void listTopics(
       ListTopicsRequest request, StreamObserver<ListTopicsResponse> responseObserver) {
+    logger.atFine().log("Listing Topics for %s", request);
     PaginationManager<Topic> paginationManager =
         new PaginationManager<>(
             configurationRepository.getTopics(request.getProject()), Topic::getName);
@@ -149,6 +155,7 @@ class PublisherService extends PublisherImplBase {
   public void listTopicSubscriptions(
       ListTopicSubscriptionsRequest request,
       StreamObserver<ListTopicSubscriptionsResponse> responseObserver) {
+    logger.atFine().log("Listing Subscriptions for Topic %s", request);
     PaginationManager<String> paginationManager =
         new PaginationManager<>(
             configurationRepository
@@ -170,10 +177,12 @@ class PublisherService extends PublisherImplBase {
 
   @Override
   public void publish(PublishRequest request, StreamObserver<PublishResponse> responseObserver) {
+    logger.atFine().log(
+        "Publishing %d messages to %s", request.getMessagesCount(), request.getTopic());
     Optional<Topic> topic = configurationRepository.getTopicByName(request.getTopic());
     if (!topic.isPresent()) {
       String message = request.getTopic() + " is not a valid Topic";
-      LOGGER.warning(message);
+      logger.atWarning().log(message);
       responseObserver.onError(Status.NOT_FOUND.withDescription(message).asException());
     } else {
       publishToKafka(request, topic.get(), responseObserver);
@@ -207,7 +216,7 @@ class PublisherService extends PublisherImplBase {
                           recordMetadata.partition() + "-" + recordMetadata.offset());
                       statisticsManager.computePublish(topic.getName(), m.getData(), publishedAt);
                     } else {
-                      LOGGER.severe("Unable to Publish message: " + exception.getMessage());
+                      logger.atSevere().withCause(exception).log("Unable to Publish message");
                       statisticsManager.computePublishError(topic.getName());
                       failures.incrementAndGet();
                     }
@@ -217,24 +226,24 @@ class PublisherService extends PublisherImplBase {
 
     try {
       if (!callbacks.await(MAX_PUBLISH_WAIT, TimeUnit.SECONDS)) {
-        LOGGER.warning(callbacks.getCount() + " callbacks remain after " + MAX_PUBLISH_WAIT + "s");
+        logger.atWarning().log(
+            "%d callbacks remain after %ds", callbacks.getCount(), MAX_PUBLISH_WAIT);
       }
 
-      LOGGER.fine(
-          String.format(
-              "Published %d of %d messages to %s using KafkaProducer %d in %dms",
-              builder.getMessageIdsCount(),
-              request.getMessagesCount(),
-              kafkaTopic,
-              producerIndex,
-              Duration.between(start, Instant.now()).toMillis()));
+      logger.atFine().log(
+          "Published %d of %d messages to %s using KafkaProducer %d in %dms",
+          builder.getMessageIdsCount(),
+          request.getMessagesCount(),
+          kafkaTopic,
+          producerIndex,
+          Duration.between(start, Instant.now()).toMillis());
       if (failures.get() == 0) {
         responseObserver.onNext(builder.build());
         responseObserver.onCompleted();
       } else {
         String message =
             failures.get() + " of " + request.getMessagesCount() + " Messages failed to Publish";
-        LOGGER.warning(message);
+        logger.atWarning().log(message);
         responseObserver.onError(Status.INTERNAL.withDescription(message).asException());
       }
     } catch (InterruptedException e) {

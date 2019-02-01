@@ -28,9 +28,11 @@ import java.time.Clock;
 public class DefaultModule extends AbstractModule {
 
   private final File configurationFile;
+  private final boolean writeOnSave;
 
-  public DefaultModule(String configFilePath) {
+  public DefaultModule(String configFilePath, boolean writeOnSave) {
     this.configurationFile = new File(configFilePath);
+    this.writeOnSave = writeOnSave;
   }
 
   @Override
@@ -49,6 +51,6 @@ public class DefaultModule extends AbstractModule {
 
   @Provides
   ConfigurationRepository provideFileConfigurationRepository() {
-    return FileConfigurationRepository.create(configurationFile);
+    return FileConfigurationRepository.create(configurationFile, writeOnSave);
   }
 }
