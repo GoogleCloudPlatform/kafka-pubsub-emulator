@@ -57,6 +57,7 @@ class AdminService extends AdminImplBase {
 
   private final ConfigurationRepository configurationRepository;
   private final StatisticsManager statisticsManager;
+  private final Clock clock;
   private final Instant startedAt;
 
   @Inject
@@ -65,6 +66,7 @@ class AdminService extends AdminImplBase {
       Clock clock,
       StatisticsManager statisticsManager) {
     this.configurationRepository = configurationRepository;
+    this.clock = clock;
     this.startedAt = clock.instant();
     this.statisticsManager = statisticsManager;
   }
@@ -88,7 +90,7 @@ class AdminService extends AdminImplBase {
   @Override
   public void statistics(
       StatisticsRequest request, StreamObserver<StatisticsResponse> responseObserver) {
-    long durationSeconds = java.time.Duration.between(startedAt, Instant.now()).getSeconds();
+    long durationSeconds = java.time.Duration.between(startedAt, clock.instant()).getSeconds();
     Map<String, StatisticsInformation> publishInformationByTopic =
         statisticsManager.getPublishInformationByTopic();
     Map<String, StatisticsInformation> subscriberInformationByTopic =

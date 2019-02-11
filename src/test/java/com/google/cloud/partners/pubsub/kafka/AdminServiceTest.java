@@ -51,12 +51,15 @@ public class AdminServiceTest {
 
   private AdminBlockingStub blockingStub;
   private ConfigurationRepository configurationRepository = new FakeConfigurationRepository();
-  private Clock clock = Clock.fixed(Instant.ofEpochSecond(1546300800), ZoneId.systemDefault());
+  @Mock private Clock mockClock;
   @Mock private StatisticsManager statisticsManager;
 
   @Before
   public void setUp() {
-    AdminService admin = new AdminService(configurationRepository, clock, statisticsManager);
+    Instant now = Instant.ofEpochSecond(1546300800);
+    when(mockClock.instant()).thenReturn(now, now.plusSeconds(60));
+
+    AdminService admin = new AdminService(configurationRepository, mockClock, statisticsManager);
     grpcServerRule.getServiceRegistry().addService(admin);
     blockingStub = AdminGrpc.newBlockingStub(grpcServerRule.getChannel());
   }
@@ -101,7 +104,7 @@ public class AdminServiceTest {
   private StatisticsInformation givenStatisticsInformation(int errors, long... latencies) {
     StatisticsInformation information = new StatisticsInformation();
     for (long latency : latencies) {
-      information.compute(latency, 5000);
+      information.compute(latency, 1000);
     }
     for (int i = 0; i < errors; i++) {
       information.computeError();
@@ -126,7 +129,7 @@ public class AdminServiceTest {
                 + "    metrics {\n"
                 + "      name: \"throughput\"\n"
                 + "      description: \"Throughput in bytes per second\"\n"
-                + "      value: \"0.02\"\n"
+                + "      value: \"166.67\"\n"
                 + "    }\n"
                 + "    metrics {\n"
                 + "      name: \"average_latency\"\n"
@@ -136,7 +139,7 @@ public class AdminServiceTest {
                 + "    metrics {\n"
                 + "      name: \"qps\"\n"
                 + "      description: \"QPS.\"\n"
-                + "      value: \"0.00\"\n"
+                + "      value: \"0.17\"\n"
                 + "    }\n"
                 + "    metrics {\n"
                 + "      name: \"error_rate\"\n"
@@ -156,7 +159,7 @@ public class AdminServiceTest {
                 + "    metrics {\n"
                 + "      name: \"throughput\"\n"
                 + "      description: \"Throughput in bytes per second\"\n"
-                + "      value: \"0.00\"\n"
+                + "      value: \"33.33\"\n"
                 + "    }\n"
                 + "    metrics {\n"
                 + "      name: \"average_latency\"\n"
@@ -166,7 +169,7 @@ public class AdminServiceTest {
                 + "    metrics {\n"
                 + "      name: \"qps\"\n"
                 + "      description: \"QPS.\"\n"
-                + "      value: \"0.00\"\n"
+                + "      value: \"0.03\"\n"
                 + "    }\n"
                 + "    metrics {\n"
                 + "      name: \"error_rate\"\n"
@@ -186,7 +189,7 @@ public class AdminServiceTest {
                 + "    metrics {\n"
                 + "      name: \"throughput\"\n"
                 + "      description: \"Throughput in bytes per second\"\n"
-                + "      value: \"0.02\"\n"
+                + "      value: \"166.67\"\n"
                 + "    }\n"
                 + "    metrics {\n"
                 + "      name: \"average_latency\"\n"
@@ -196,7 +199,7 @@ public class AdminServiceTest {
                 + "    metrics {\n"
                 + "      name: \"qps\"\n"
                 + "      description: \"QPS.\"\n"
-                + "      value: \"0.00\"\n"
+                + "      value: \"0.17\"\n"
                 + "    }\n"
                 + "    metrics {\n"
                 + "      name: \"error_rate\"\n"
@@ -216,7 +219,7 @@ public class AdminServiceTest {
                 + "    metrics {\n"
                 + "      name: \"throughput\"\n"
                 + "      description: \"Throughput in bytes per second\"\n"
-                + "      value: \"0.00\"\n"
+                + "      value: \"33.33\"\n"
                 + "    }\n"
                 + "    metrics {\n"
                 + "      name: \"average_latency\"\n"
@@ -226,7 +229,7 @@ public class AdminServiceTest {
                 + "    metrics {\n"
                 + "      name: \"qps\"\n"
                 + "      description: \"QPS.\"\n"
-                + "      value: \"0.00\"\n"
+                + "      value: \"0.03\"\n"
                 + "    }\n"
                 + "    metrics {\n"
                 + "      name: \"error_rate\"\n"
@@ -246,7 +249,7 @@ public class AdminServiceTest {
                 + "    metrics {\n"
                 + "      name: \"throughput\"\n"
                 + "      description: \"Throughput in bytes per second\"\n"
-                + "      value: \"0.00\"\n"
+                + "      value: \"50.00\"\n"
                 + "    }\n"
                 + "    metrics {\n"
                 + "      name: \"average_latency\"\n"
@@ -256,7 +259,7 @@ public class AdminServiceTest {
                 + "    metrics {\n"
                 + "      name: \"qps\"\n"
                 + "      description: \"QPS.\"\n"
-                + "      value: \"0.00\"\n"
+                + "      value: \"0.05\"\n"
                 + "    }\n"
                 + "  }\n"
                 + "}\n"
@@ -296,7 +299,7 @@ public class AdminServiceTest {
                 + "    metrics {\n"
                 + "      name: \"throughput\"\n"
                 + "      description: \"Throughput in bytes per second\"\n"
-                + "      value: \"0.00\"\n"
+                + "      value: \"50.00\"\n"
                 + "    }\n"
                 + "    metrics {\n"
                 + "      name: \"average_latency\"\n"
@@ -306,7 +309,7 @@ public class AdminServiceTest {
                 + "    metrics {\n"
                 + "      name: \"qps\"\n"
                 + "      description: \"QPS.\"\n"
-                + "      value: \"0.00\"\n"
+                + "      value: \"0.05\"\n"
                 + "    }\n"
                 + "  }\n"
                 + "}\n"
