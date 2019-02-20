@@ -149,7 +149,7 @@ public class PerformanceBenchmark {
 
     LOGGER.info(
         format(
-            "Running throughput test on %s for %ds using %d Publishers and %d Subscribers using %d byte messages and a maximum Publish rate of %d",
+            "Running throughput test on %s for %ds using %d Publishers and %d Subscribers using %d byte messages and a maximum Publish rate of %d QPS",
             topic, duration, publishers.size(), subscribers.size(), messageSizeBytes, publishQps));
     startedAt = Instant.now();
     subscribers.forEach(Subscriber::startAsync);

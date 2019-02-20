@@ -27,7 +27,7 @@ import static org.apache.kafka.clients.producer.ProducerConfig.KEY_SERIALIZER_CL
 import static org.apache.kafka.clients.producer.ProducerConfig.MAX_BLOCK_MS_CONFIG;
 import static org.apache.kafka.clients.producer.ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG;
 
-import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager;
 import java.nio.ByteBuffer;
 import java.util.Properties;
 import javax.inject.Inject;
@@ -55,7 +55,7 @@ class DefaultKafkaClientFactory implements KafkaClientFactory {
       "org.apache.kafka.common.serialization.ByteBufferDeserializer";
   private static final int MAX_BLOCK_MS_VALUE = 2000;
 
-  private final ConfigurationRepository configurationRepository;
+  private final ConfigurationManager configurationManager;
   private final String bootstrapServersJoined;
 
   /**
@@ -63,10 +63,10 @@ class DefaultKafkaClientFactory implements KafkaClientFactory {
    * objects to produce or consume records to/from topics.
    */
   @Inject
-  DefaultKafkaClientFactory(ConfigurationRepository configurationRepository) {
-    this.configurationRepository = configurationRepository;
+  DefaultKafkaClientFactory(ConfigurationManager configurationManager) {
+    this.configurationManager = configurationManager;
     bootstrapServersJoined =
-        String.join(",", configurationRepository.getKafka().getBootstrapServersList());
+        String.join(",", configurationManager.getServer().getKafka().getBootstrapServersList());
   }
 
   /**
@@ -76,7 +76,7 @@ class DefaultKafkaClientFactory implements KafkaClientFactory {
   @Override
   public Consumer<String, ByteBuffer> createConsumer(String subscription) {
     Properties properties = new Properties();
-    properties.putAll(configurationRepository.getKafka().getConsumerPropertiesMap());
+    properties.putAll(configurationManager.getServer().getKafka().getConsumerPropertiesMap());
     properties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServersJoined);
     properties.setProperty(ENABLE_AUTO_COMMIT_CONFIG, FALSE.toString());
     properties.setProperty(AUTO_OFFSET_RESET_CONFIG, AUTO_OFFSET_RESET_CONFIG_VALUE);
@@ -91,7 +91,7 @@ class DefaultKafkaClientFactory implements KafkaClientFactory {
   @Override
   public Producer<String, ByteBuffer> createProducer() {
     Properties properties = new Properties();
-    properties.putAll(configurationRepository.getKafka().getProducerPropertiesMap());
+    properties.putAll(configurationManager.getServer().getKafka().getProducerPropertiesMap());
     properties.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServersJoined);
     properties.setProperty(ACKS_CONFIG, ACKS_CONFIG_VALUE);
     properties.setProperty(KEY_SERIALIZER_CLASS_CONFIG, PRODUCER_KEY_SERIALIZER_CONFIG_VALUE);

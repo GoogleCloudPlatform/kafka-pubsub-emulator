@@ -26,8 +26,8 @@ import com.google.cloud.partners.pubsub.kafka.common.ConfigurationResponse;
 import com.google.cloud.partners.pubsub.kafka.common.ConfigurationResponse.Extension;
 import com.google.cloud.partners.pubsub.kafka.common.StatisticsRequest;
 import com.google.cloud.partners.pubsub.kafka.common.StatisticsResponse;
-import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository;
-import com.google.cloud.partners.pubsub.kafka.config.FakeConfigurationRepository;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager;
+import com.google.cloud.partners.pubsub.kafka.config.FakePubSubRepository;
 import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.TextFormat;
 import com.google.protobuf.TextFormat.ParseException;
@@ -35,7 +35,6 @@ import io.grpc.testing.GrpcServerRule;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneId;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Rule;
@@ -50,7 +49,8 @@ public class AdminServiceTest {
   @Rule public final GrpcServerRule grpcServerRule = new GrpcServerRule().directExecutor();
 
   private AdminBlockingStub blockingStub;
-  private ConfigurationRepository configurationRepository = new FakeConfigurationRepository();
+  private ConfigurationManager configurationManager =
+      new ConfigurationManager(TestHelpers.SERVER_CONFIG, new FakePubSubRepository());
   @Mock private Clock mockClock;
   @Mock private StatisticsManager statisticsManager;
 
@@ -59,7 +59,7 @@ public class AdminServiceTest {
     Instant now = Instant.ofEpochSecond(1546300800);
     when(mockClock.instant()).thenReturn(now, now.plusSeconds(60));
 
-    AdminService admin = new AdminService(configurationRepository, mockClock, statisticsManager);
+    AdminService admin = new AdminService(configurationManager, mockClock, statisticsManager);
     grpcServerRule.getServiceRegistry().addService(admin);
     blockingStub = AdminGrpc.newBlockingStub(grpcServerRule.getChannel());
   }
@@ -97,8 +97,7 @@ public class AdminServiceTest {
         blockingStub.configuration(ConfigurationRequest.newBuilder().build());
 
     assertThat(configurationResponse.getExtension(), Matchers.equalTo(Extension.JSON));
-    assertThat(
-        configurationResponse.getContent(), Matchers.equalTo(TestHelpers.getTestConfigJson()));
+    assertThat(configurationResponse.getContent(), Matchers.equalTo(TestHelpers.PUBSUB_JSON));
   }
 
   private StatisticsInformation givenStatisticsInformation(int errors, long... latencies) {

@@ -16,7 +16,7 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
-import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.flogger.FluentLogger;
 import com.google.protobuf.ByteString;
@@ -37,7 +37,7 @@ class StatisticsManager {
 
   private static final FluentLogger logger = FluentLogger.forEnclosingClass();
 
-  private final ConfigurationRepository configurationRepository;
+  private final ConfigurationManager configurationManager;
   private final Map<String, StatisticsInformation> publishInformationByTopic =
       new ConcurrentHashMap<>();
   private final Map<String, StatisticsInformation> subscriberInformationByTopic =
@@ -45,12 +45,12 @@ class StatisticsManager {
   private final Clock clock;
 
   @Inject
-  StatisticsManager(ConfigurationRepository configurationRepository, Clock clock) {
-    this.configurationRepository = configurationRepository;
+  StatisticsManager(ConfigurationManager configurationManager, Clock clock) {
+    this.configurationManager = configurationManager;
     this.clock = clock;
 
-    for (String project : configurationRepository.getProjects()) {
-      for (Topic topic : configurationRepository.getTopics(project)) {
+    for (String project : configurationManager.getProjects()) {
+      for (Topic topic : configurationManager.getTopics(project)) {
         publishInformationByTopic.put(topic.getName(), new StatisticsInformation());
         subscriberInformationByTopic.put(topic.getName(), new StatisticsInformation());
       }
@@ -86,7 +86,7 @@ class StatisticsManager {
 
   void computeSubscriber(String subscription, ByteString messageData, Timestamp publishTime) {
     Optional<Subscription> subscriptionByName =
-        configurationRepository.getSubscriptionByName(subscription);
+        configurationManager.getSubscriptionByName(subscription);
     if (subscriptionByName.isPresent()) {
       StatisticsInformation statisticsInformation =
           subscriberInformationByTopic.get(subscriptionByName.get().getTopic());

@@ -16,7 +16,7 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
-import static com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.KAFKA_TOPIC;
+import static com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager.KAFKA_TOPIC;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -24,15 +24,11 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.google.cloud.partners.pubsub.kafka.config.Configuration;
-import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository;
-import com.google.cloud.partners.pubsub.kafka.config.FakeConfigurationRepository;
-import com.google.cloud.partners.pubsub.kafka.config.Kafka;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager;
+import com.google.cloud.partners.pubsub.kafka.config.FakePubSubRepository;
 import com.google.cloud.partners.pubsub.kafka.config.Project;
 import com.google.cloud.partners.pubsub.kafka.config.PubSub;
-import com.google.cloud.partners.pubsub.kafka.config.Server;
 import com.google.cloud.partners.pubsub.kafka.config.Topic;
-import com.google.common.collect.ImmutableList;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import com.google.pubsub.v1.AcknowledgeRequest;
@@ -84,7 +80,7 @@ public class SubscriberServiceTest {
   private SubscriberGrpc.SubscriberBlockingStub blockingStub;
   private SubscriberService subscriber;
 
-  private ConfigurationRepository configurationRepository;
+  private ConfigurationManager configurationManager;
 
   @Mock private KafkaClientFactory mockKafkaClientFactory;
   @Mock private SubscriptionManagerFactory mockSubscriptionManagerFactory;
@@ -98,10 +94,10 @@ public class SubscriberServiceTest {
 
   @Before
   public void setUp() {
-    configurationRepository = setupConfigurationRepository();
+    configurationManager = setupConfigurationRepository();
     subscriber =
         new SubscriberService(
-            configurationRepository, mockSubscriptionManagerFactory, mockStatisticsManager);
+            configurationManager, mockSubscriptionManagerFactory, mockStatisticsManager);
     grpcServerRule.getServiceRegistry().addService(subscriber);
     blockingStub = SubscriberGrpc.newBlockingStub(grpcServerRule.getChannel());
   }
@@ -710,60 +706,49 @@ public class SubscriberServiceTest {
   }
 
   @SuppressWarnings("unchecked")
-  private ConfigurationRepository setupConfigurationRepository() {
-    configurationRepository =
-        new FakeConfigurationRepository(
-            Configuration.newBuilder()
-                .setServer(Server.newBuilder().setPort(8080).build())
-                .setKafka(
-                    Kafka.newBuilder()
-                        .addAllBootstrapServers(ImmutableList.of("server1:2192", "server2:2192"))
-                        .putProducerProperties("max.poll.records", "1000")
-                        .putConsumerProperties("linger.ms", "5")
-                        .putConsumerProperties("batch.size", "1000000")
-                        .putConsumerProperties("buffer.memory", "32000000")
-                        .setProducerExecutors(4)
-                        .setConsumersPerSubscription(4)
-                        .build())
-                .setPubsub(
-                    PubSub.newBuilder()
-                        .addProjects(
-                            Project.newBuilder()
-                                .setName("project-1")
-                                .addTopics(
-                                    Topic.newBuilder()
-                                        .setName("topic-1")
-                                        .setKafkaTopic("kafka-topic-1")
-                                        .addSubscriptions(
-                                            com.google.cloud.partners.pubsub.kafka.config
-                                                .Subscription.newBuilder()
-                                                .setName("subscription-1")
-                                                .setAckDeadlineSeconds(10)
-                                                .build())
-                                        .addSubscriptions(
-                                            com.google.cloud.partners.pubsub.kafka.config
-                                                .Subscription.newBuilder()
-                                                .setName("subscription-2")
-                                                .setAckDeadlineSeconds(30)
-                                                .build())
-                                        .build())
-                                .build())
-                        .addProjects(
-                            Project.newBuilder()
-                                .setName("project-2")
-                                .addTopics(
-                                    Topic.newBuilder()
-                                        .setName("topic-2")
-                                        .setKafkaTopic("kafka-topic-2")
-                                        .addSubscriptions(
-                                            com.google.cloud.partners.pubsub.kafka.config
-                                                .Subscription.newBuilder()
-                                                .setName("subscription-3")
-                                                .setAckDeadlineSeconds(45)
-                                                .build())
-                                        .build())
-                                .build()))
-                .build());
+  private ConfigurationManager setupConfigurationRepository() {
+    configurationManager =
+        new ConfigurationManager(
+            TestHelpers.SERVER_CONFIG,
+            new FakePubSubRepository(
+                PubSub.newBuilder()
+                    .addProjects(
+                        Project.newBuilder()
+                            .setName("project-1")
+                            .addTopics(
+                                Topic.newBuilder()
+                                    .setName("topic-1")
+                                    .setKafkaTopic("kafka-topic-1")
+                                    .addSubscriptions(
+                                        com.google.cloud.partners.pubsub.kafka.config.Subscription
+                                            .newBuilder()
+                                            .setName("subscription-1")
+                                            .setAckDeadlineSeconds(10)
+                                            .build())
+                                    .addSubscriptions(
+                                        com.google.cloud.partners.pubsub.kafka.config.Subscription
+                                            .newBuilder()
+                                            .setName("subscription-2")
+                                            .setAckDeadlineSeconds(30)
+                                            .build())
+                                    .build())
+                            .build())
+                    .addProjects(
+                        Project.newBuilder()
+                            .setName("project-2")
+                            .addTopics(
+                                Topic.newBuilder()
+                                    .setName("topic-2")
+                                    .setKafkaTopic("kafka-topic-2")
+                                    .addSubscriptions(
+                                        com.google.cloud.partners.pubsub.kafka.config.Subscription
+                                            .newBuilder()
+                                            .setName("subscription-3")
+                                            .setAckDeadlineSeconds(45)
+                                            .build())
+                                    .build())
+                            .build())
+                    .build()));
     Subscription subscription1 =
         Subscription.newBuilder()
             .setName(TestHelpers.PROJECT1_SUBSCRIPTION1)
@@ -809,7 +794,7 @@ public class SubscriberServiceTest {
     when(mockSubscriptionManagerFactory.create(subscription2)).thenReturn(fakeSubscriptionManager2);
     when(mockSubscriptionManagerFactory.create(subscription3)).thenReturn(fakeSubscriptionManager3);
 
-    return configurationRepository;
+    return configurationManager;
   }
 
   // Making a fake class that wraps a Mock

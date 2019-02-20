@@ -16,11 +16,11 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
-import static com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.KAFKA_TOPIC;
+import static com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager.KAFKA_TOPIC;
 
-import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository;
-import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.ConfigurationAlreadyExistsException;
-import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.ConfigurationNotFoundException;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager.ConfigurationAlreadyExistsException;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager.ConfigurationNotFoundException;
 import com.google.common.flogger.FluentLogger;
 import com.google.protobuf.Empty;
 import com.google.pubsub.v1.DeleteTopicRequest;
@@ -67,20 +67,20 @@ class PublisherService extends PublisherImplBase {
   private static final int MAX_PUBLISH_WAIT = 9; // seconds, 10s is the default publish RPC timeout
   private static final FluentLogger logger = FluentLogger.forEnclosingClass();
 
-  private final ConfigurationRepository configurationRepository;
+  private final ConfigurationManager configurationManager;
   private final List<Producer<String, ByteBuffer>> kafkaProducers = new ArrayList<>();
   private final AtomicInteger nextProducerIndex;
   private final StatisticsManager statisticsManager;
 
   @Inject
   PublisherService(
-      ConfigurationRepository configurationRepository,
+      ConfigurationManager configurationManager,
       KafkaClientFactory kafkaClientFactory,
       StatisticsManager statisticsManager) {
-    this.configurationRepository = configurationRepository;
+    this.configurationManager = configurationManager;
     this.statisticsManager = statisticsManager;
 
-    for (int i = 0; i < configurationRepository.getKafka().getProducerExecutors(); i++) {
+    for (int i = 0; i < configurationManager.getServer().getKafka().getProducerExecutors(); i++) {
       kafkaProducers.add(kafkaClientFactory.createProducer());
     }
     logger.atInfo().log("Created %d KafkaProducers", kafkaProducers.size());
@@ -99,7 +99,7 @@ class PublisherService extends PublisherImplBase {
   public void createTopic(Topic request, StreamObserver<Topic> responseObserver) {
     try {
       logger.atFine().log("Creating Topic %s", request);
-      configurationRepository.createTopic(request);
+      configurationManager.createTopic(request);
       responseObserver.onNext(request);
       responseObserver.onCompleted();
     } catch (ConfigurationAlreadyExistsException e) {
@@ -112,7 +112,7 @@ class PublisherService extends PublisherImplBase {
   public void deleteTopic(DeleteTopicRequest request, StreamObserver<Empty> responseObserver) {
     try {
       logger.atFine().log("Deleting Topic %s", request);
-      configurationRepository.deleteTopic(request.getTopic());
+      configurationManager.deleteTopic(request.getTopic());
       responseObserver.onNext(Empty.getDefaultInstance());
       responseObserver.onCompleted();
     } catch (ConfigurationNotFoundException e) {
@@ -124,7 +124,7 @@ class PublisherService extends PublisherImplBase {
   @Override
   public void getTopic(GetTopicRequest request, StreamObserver<Topic> responseObserver) {
     logger.atFine().log("Getting Topic %s", request);
-    Optional<Topic> topic = configurationRepository.getTopicByName(request.getTopic());
+    Optional<Topic> topic = configurationManager.getTopicByName(request.getTopic());
     if (!topic.isPresent()) {
       String message = request.getTopic() + " is not a valid Topic";
       logger.atWarning().log(message);
@@ -141,7 +141,7 @@ class PublisherService extends PublisherImplBase {
     logger.atFine().log("Listing Topics for %s", request);
     PaginationManager<Topic> paginationManager =
         new PaginationManager<>(
-            configurationRepository.getTopics(request.getProject()), Topic::getName);
+            configurationManager.getTopics(request.getProject()), Topic::getName);
     ListTopicsResponse response =
         ListTopicsResponse.newBuilder()
             .addAllTopics(paginationManager.paginate(request.getPageSize(), request.getPageToken()))
@@ -158,7 +158,7 @@ class PublisherService extends PublisherImplBase {
     logger.atFine().log("Listing Subscriptions for Topic %s", request);
     PaginationManager<String> paginationManager =
         new PaginationManager<>(
-            configurationRepository
+            configurationManager
                 .getSubscriptionsForTopic(request.getTopic())
                 .stream()
                 .map(com.google.pubsub.v1.Subscription::getName)
@@ -179,7 +179,7 @@ class PublisherService extends PublisherImplBase {
   public void publish(PublishRequest request, StreamObserver<PublishResponse> responseObserver) {
     logger.atFine().log(
         "Publishing %d messages to %s", request.getMessagesCount(), request.getTopic());
-    Optional<Topic> topic = configurationRepository.getTopicByName(request.getTopic());
+    Optional<Topic> topic = configurationManager.getTopicByName(request.getTopic());
     if (!topic.isPresent()) {
       String message = request.getTopic() + " is not a valid Topic";
       logger.atWarning().log(message);

@@ -18,9 +18,9 @@ package com.google.cloud.partners.pubsub.kafka;
 
 import static java.util.Objects.isNull;
 
-import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository;
-import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.ConfigurationAlreadyExistsException;
-import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.ConfigurationNotFoundException;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager.ConfigurationAlreadyExistsException;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager.ConfigurationNotFoundException;
 import com.google.common.flogger.FluentLogger;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
 import com.google.protobuf.Empty;
@@ -65,23 +65,23 @@ class SubscriberService extends SubscriberImplBase {
 
   private final Map<String, SubscriptionManager> subscriptions;
   private final StatisticsManager statisticsManager;
-  private final ConfigurationRepository configurationRepository;
+  private final ConfigurationManager configurationManager;
   private final SubscriptionManagerFactory subscriptionManagerFactory;
 
   @Inject
   SubscriberService(
-      ConfigurationRepository configurationRepository,
+      ConfigurationManager configurationManager,
       SubscriptionManagerFactory subscriptionManagerFactory,
       StatisticsManager statisticsManager) {
-    this.configurationRepository = configurationRepository;
+    this.configurationManager = configurationManager;
     this.statisticsManager = statisticsManager;
     this.subscriptionManagerFactory = subscriptionManagerFactory;
 
     subscriptions =
-        configurationRepository
+        configurationManager
             .getProjects()
             .stream()
-            .flatMap(p -> configurationRepository.getSubscriptions(p).stream())
+            .flatMap(p -> configurationManager.getSubscriptions(p).stream())
             .collect(
                 Collectors.toConcurrentMap(
                     Subscription::getName,
@@ -119,7 +119,7 @@ class SubscriberService extends SubscriberImplBase {
       Subscription request, StreamObserver<Subscription> responseObserver) {
     try {
       logger.atFine().log("Creating Subscription %s", request);
-      configurationRepository.createSubscription(request);
+      configurationManager.createSubscription(request);
       subscriptions.put(request.getName(), subscriptionManagerFactory.create(request));
       statisticsManager.addSubscriberInformation(request);
       responseObserver.onNext(request);
@@ -139,7 +139,7 @@ class SubscriberService extends SubscriberImplBase {
     try {
 
       logger.atFine().log("Deleting Subscription %s", request);
-      configurationRepository.deleteSubscription(request.getSubscription());
+      configurationManager.deleteSubscription(request.getSubscription());
       subscriptions.get(request.getSubscription()).stopAsync().awaitTerminated();
       subscriptions.remove(request.getSubscription());
       responseObserver.onNext(Empty.newBuilder().build());
@@ -158,7 +158,7 @@ class SubscriberService extends SubscriberImplBase {
     logger.atFine().log("Listing Subscriptions for %s", request);
     PaginationManager<Subscription> paginationManager =
         new PaginationManager<>(
-            configurationRepository.getSubscriptions(request.getProject()), Subscription::getName);
+            configurationManager.getSubscriptions(request.getProject()), Subscription::getName);
     ListSubscriptionsResponse response =
         ListSubscriptionsResponse.newBuilder()
             .addAllSubscriptions(
@@ -174,7 +174,7 @@ class SubscriberService extends SubscriberImplBase {
       GetSubscriptionRequest request, StreamObserver<Subscription> responseObserver) {
     logger.atFine().log("Getting Subscription %s", request);
     Optional<Subscription> subscription =
-        configurationRepository.getSubscriptionByName(request.getSubscription());
+        configurationManager.getSubscriptionByName(request.getSubscription());
     if (!subscription.isPresent()) {
       String message = request.getSubscription() + " is not a valid Subscription";
       logger.atWarning().log(message);

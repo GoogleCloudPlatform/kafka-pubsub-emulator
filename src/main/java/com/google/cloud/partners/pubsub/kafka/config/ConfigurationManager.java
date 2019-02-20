@@ -20,6 +20,9 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.collect.SetMultimap;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.Message;
+import com.google.protobuf.util.JsonFormat;
 import com.google.pubsub.v1.ProjectName;
 import com.google.pubsub.v1.ProjectSubscriptionName;
 import com.google.pubsub.v1.ProjectTopicName;
@@ -31,9 +34,15 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.inject.Inject;
+import javax.inject.Singleton;
 
-/** Abstract class for managing emulator configuration properties. */
-public abstract class ConfigurationRepository {
+/**
+ * Manages the emulator's server configuration, and communicates with the Pub/Sub repository used
+ * for retrieving and persisting Projects, Topics, and Subscriptions.
+ */
+@Singleton
+public final class ConfigurationManager {
 
   public static final String KAFKA_TOPIC = "kafka-topic";
 
@@ -41,14 +50,19 @@ public abstract class ConfigurationRepository {
       Multimaps.synchronizedSetMultimap(HashMultimap.create());
   private final SetMultimap<String, com.google.pubsub.v1.Subscription> subscriptionsByProject =
       Multimaps.synchronizedSetMultimap(HashMultimap.create());
-  private final Configuration originalConfiguration;
+  private final Server serverConfiguration;
+  private final PubSubRepository pubSubRepository;
 
-  ConfigurationRepository(Configuration configuration) {
-    Preconditions.checkNotNull(configuration);
-    this.originalConfiguration = configuration;
+  @Inject
+  public ConfigurationManager(Server serverConfiguration, PubSubRepository pubSubRepository) {
+    Preconditions.checkNotNull(serverConfiguration);
+    Preconditions.checkNotNull(pubSubRepository);
+
+    this.serverConfiguration = serverConfiguration;
+    this.pubSubRepository = pubSubRepository;
     topicsByProject.clear();
     subscriptionsByProject.clear();
-    for (Project p : configuration.getPubsub().getProjectsList()) {
+    for (Project p : pubSubRepository.load().getProjectsList()) {
       for (Topic t : p.getTopicsList()) {
         String projectName = ProjectName.format(p.getName());
         String topicName = ProjectTopicName.format(p.getName(), t.getName());
@@ -74,17 +88,14 @@ public abstract class ConfigurationRepository {
     }
   }
 
-  /** Persists the managed Configuration to its store. */
-  abstract void save();
-
-  /** Returns the Kafka configuration section */
-  public final Kafka getKafka() {
-    return originalConfiguration.getKafka();
-  }
-
-  /** Returns the Kafka configuration section */
-  public final Server getServer() {
-    return originalConfiguration.getServer();
+  /** Populates the provided protobuf builder object from a JSON string. */
+  public static <T extends Message.Builder> T parseFromJson(T builder, String json) {
+    try {
+      JsonFormat.parser().merge(json, builder);
+      return builder;
+    } catch (InvalidProtocolBufferException e) {
+      throw new IllegalArgumentException("Unable to parse protobuf message from JSON", e);
+    }
   }
 
   /** Returns the List of Projects */
@@ -143,7 +154,12 @@ public abstract class ConfigurationRepository {
         .collect(Collectors.toList());
   }
 
-  /** Updates the managed Configuration when a new Topic is created. */
+  /** Returns the Server configuration. */
+  public final Server getServer() {
+    return serverConfiguration;
+  }
+
+  /** Updates the managed Server when a new Topic is created. */
   public final void createTopic(com.google.pubsub.v1.Topic topic)
       throws ConfigurationAlreadyExistsException {
     ProjectTopicName projectTopicName = ProjectTopicName.parse(topic.getName());
@@ -155,10 +171,10 @@ public abstract class ConfigurationRepository {
       topic = topic.toBuilder().putLabels(KAFKA_TOPIC, projectTopicName.getTopic()).build();
     }
     topicsByProject.put(ProjectName.of(projectTopicName.getProject()).toString(), topic);
-    save();
+    pubSubRepository.save(getPubSub());
   }
 
-  /** Updates the managed Configuration when a Topic is deleted. */
+  /** Updates the managed Server when a Topic is deleted. */
   public final void deleteTopic(String topicName) throws ConfigurationNotFoundException {
     ProjectTopicName projectTopicName = ProjectTopicName.parse(topicName);
     ProjectName projectName = ProjectName.of(projectTopicName.getProject());
@@ -169,10 +185,10 @@ public abstract class ConfigurationRepository {
             () ->
                 new ConfigurationNotFoundException(
                     "Topic " + projectTopicName.toString() + " does not exist"));
-    save();
+    pubSubRepository.save(getPubSub());
   }
 
-  /** Updates the managed Configuration when a new Subscription is created. */
+  /** Updates the managed Server when a new Subscription is created. */
   public final void createSubscription(com.google.pubsub.v1.Subscription subscription)
       throws ConfigurationAlreadyExistsException, ConfigurationNotFoundException {
     ProjectTopicName projectTopicName = ProjectTopicName.parse(subscription.getTopic());
@@ -196,10 +212,10 @@ public abstract class ConfigurationRepository {
     }
     subscriptionsByProject.put(
         ProjectName.of(projectSubscriptionName.getProject()).toString(), builder.build());
-    save();
+    pubSubRepository.save(getPubSub());
   }
 
-  /** Updates the managed Configuration when a Subscription is deleted. */
+  /** Updates the managed Server when a Subscription is deleted. */
   public final void deleteSubscription(String subscriptionName)
       throws ConfigurationNotFoundException {
     ProjectSubscriptionName projectSubscriptionName =
@@ -214,14 +230,14 @@ public abstract class ConfigurationRepository {
             () ->
                 new ConfigurationNotFoundException(
                     "Subscription " + projectSubscriptionName.toString() + " does not exist"));
-    save();
+    pubSubRepository.save(getPubSub());
   }
 
   /**
-   * Generates and returns a new Configuration object based on the managed state in the repository.
+   * Generates and returns a new PubSub object based on the managed state in the repository.
    * Projects, Topics, and Subscriptions will all be added in sorted order by name
    */
-  public final Configuration getConfiguration() {
+  public final PubSub getPubSub() {
     Map<String, Project.Builder> projectMap = new HashMap<>();
     topicsByProject
         .values()
@@ -259,17 +275,14 @@ public abstract class ConfigurationRepository {
                       .build());
             });
 
-    return originalConfiguration
-        .toBuilder()
-        .setPubsub(
-            PubSub.newBuilder()
-                .addAllProjects(
-                    projectMap
-                        .values()
-                        .stream()
-                        .sorted(Comparator.comparing(Project.Builder::getName))
-                        .map(Builder::build)
-                        .collect(Collectors.toList())))
+    return PubSub.newBuilder()
+        .addAllProjects(
+            projectMap
+                .values()
+                .stream()
+                .sorted(Comparator.comparing(Project.Builder::getName))
+                .map(Builder::build)
+                .collect(Collectors.toList()))
         .build();
   }
 

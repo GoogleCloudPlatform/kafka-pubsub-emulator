@@ -22,7 +22,7 @@ import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.Parameters;
 import com.google.cloud.partners.pubsub.kafka.common.AdminGrpc;
-import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager;
 import com.google.common.flogger.FluentLogger;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
@@ -52,7 +52,7 @@ public class PubsubEmulatorServer {
 
   @Inject
   public PubsubEmulatorServer(
-      ConfigurationRepository configurationRepository,
+      ConfigurationManager configurationManager,
       PublisherService publisher,
       SubscriberService subscriber,
       AdminService admin,
@@ -62,16 +62,16 @@ public class PubsubEmulatorServer {
     this.healthStatusManager = healthStatusManager;
 
     ServerBuilder builder =
-        ServerBuilder.forPort(configurationRepository.getServer().getPort())
+        ServerBuilder.forPort(configurationManager.getServer().getPort())
             .addService(publisher)
             .addService(subscriber)
             .addService(admin)
             .addService(healthStatusManager.getHealthService())
             .maxInboundMessageSize(MAX_MESSAGE_SIZE);
-    if (configurationRepository.getServer().hasSecurity()) {
+    if (configurationManager.getServer().hasSecurity()) {
       builder.useTransportSecurity(
-          new File(configurationRepository.getServer().getSecurity().getCertificateChainFile()),
-          new File(configurationRepository.getServer().getSecurity().getPrivateKeyFile()));
+          new File(configurationManager.getServer().getSecurity().getCertificateChainFile()),
+          new File(configurationManager.getServer().getSecurity().getPrivateKeyFile()));
     }
     server = builder.build();
   }
@@ -91,7 +91,7 @@ public class PubsubEmulatorServer {
       return;
     }
     Injector injector =
-        Guice.createInjector(new DefaultModule(argObject.configurationFile, argObject.writeOnSave));
+        Guice.createInjector(new DefaultModule(argObject.configurationFile, argObject.pubSubFile));
     PubsubEmulatorServer pubsubEmulatorServer = injector.getInstance(PubsubEmulatorServer.class);
     try {
       pubsubEmulatorServer.start();
@@ -148,13 +148,14 @@ public class PubsubEmulatorServer {
     @Parameter(
         names = {"-c", "--configuration-file"},
         required = true,
-        description = "Path to a JSON-formatted configuration file.")
+        description = "Path to a JSON-formatted configuration file for the server.")
     private String configurationFile;
 
     @Parameter(
-        names = {"-s", "--save-configuration-changes"},
-        description = "Save configuration changes made by clients back to configuration file.")
-    private boolean writeOnSave = true;
+        names = {"-p", "--pubsub-repository-file"},
+        required = true,
+        description = "Path to a JSON-formatted PubSub configuration repository file.")
+    private String pubSubFile;
 
     @Parameter(
         names = {"--help"},

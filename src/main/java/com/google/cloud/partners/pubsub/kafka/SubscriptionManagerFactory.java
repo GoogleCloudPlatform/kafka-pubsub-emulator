@@ -16,7 +16,7 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
-import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager;
 import com.google.pubsub.v1.Subscription;
 import java.time.Clock;
 import javax.inject.Inject;
@@ -26,13 +26,13 @@ import javax.inject.Singleton;
 @Singleton
 class SubscriptionManagerFactory {
 
-  private final ConfigurationRepository configurationRepository;
+  private final ConfigurationManager configurationManager;
   private final KafkaClientFactory kafkaClientFactory;
 
   @Inject
   SubscriptionManagerFactory(
-      ConfigurationRepository configurationRepository, KafkaClientFactory kafkaClientFactory) {
-    this.configurationRepository = configurationRepository;
+      ConfigurationManager configurationManager, KafkaClientFactory kafkaClientFactory) {
+    this.configurationManager = configurationManager;
     this.kafkaClientFactory = kafkaClientFactory;
   }
 
@@ -41,6 +41,6 @@ class SubscriptionManagerFactory {
         subscription,
         kafkaClientFactory,
         Clock.systemUTC(),
-        configurationRepository.getKafka().getConsumersPerSubscription());
+        configurationManager.getServer().getKafka().getConsumersPerSubscription());
   }
 }

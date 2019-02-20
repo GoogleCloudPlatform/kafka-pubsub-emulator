@@ -16,23 +16,30 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
-import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository;
-import com.google.cloud.partners.pubsub.kafka.config.FileConfigurationRepository;
+import static java.nio.charset.StandardCharsets.UTF_8;
+
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager;
+import com.google.cloud.partners.pubsub.kafka.config.PubSubFileRepository;
+import com.google.cloud.partners.pubsub.kafka.config.PubSubRepository;
+import com.google.cloud.partners.pubsub.kafka.config.Server;
+import com.google.cloud.partners.pubsub.kafka.config.Server.Builder;
 import com.google.inject.AbstractModule;
 import com.google.inject.Provides;
 import io.grpc.services.HealthStatusManager;
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.time.Clock;
 
 /** Default Guice dependency-injection module */
 public class DefaultModule extends AbstractModule {
 
   private final File configurationFile;
-  private final boolean writeOnSave;
+  private final File pubSubFile;
 
-  public DefaultModule(String configFilePath, boolean writeOnSave) {
+  public DefaultModule(String configFilePath, String pubSubFilePath) {
     this.configurationFile = new File(configFilePath);
-    this.writeOnSave = writeOnSave;
+    this.pubSubFile = new File(pubSubFilePath);
   }
 
   @Override
@@ -40,6 +47,7 @@ public class DefaultModule extends AbstractModule {
     bind(KafkaClientFactory.class).to(DefaultKafkaClientFactory.class);
     bind(Clock.class).toInstance(Clock.systemUTC());
 
+    bind(ConfigurationManager.class);
     bind(SubscriptionManagerFactory.class);
     bind(PublisherService.class);
     bind(SubscriberService.class);
@@ -50,7 +58,20 @@ public class DefaultModule extends AbstractModule {
   }
 
   @Provides
-  ConfigurationRepository provideFileConfigurationRepository() {
-    return FileConfigurationRepository.create(configurationFile, writeOnSave);
+  Server provideServer() {
+    String json;
+    try {
+      json = String.join("\n", Files.readAllLines(configurationFile.toPath(), UTF_8));
+      Builder builder = Server.newBuilder();
+      return ConfigurationManager.parseFromJson(builder, json).build();
+    } catch (IOException e) {
+      throw new IllegalArgumentException(
+          "Unable to read Server configuration from " + configurationFile.getAbsolutePath(), e);
+    }
+  }
+
+  @Provides
+  PubSubRepository providePubSubRepository() {
+    return new PubSubFileRepository(pubSubFile);
   }
 }

@@ -16,7 +16,7 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
-import static com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.KAFKA_TOPIC;
+import static com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager.KAFKA_TOPIC;
 
 import com.google.common.flogger.FluentLogger;
 import com.google.common.util.concurrent.AbstractScheduledService;

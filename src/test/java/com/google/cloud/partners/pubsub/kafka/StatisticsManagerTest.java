@@ -18,8 +18,8 @@ package com.google.cloud.partners.pubsub.kafka;
 
 import static org.junit.Assert.assertEquals;
 
-import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository;
-import com.google.cloud.partners.pubsub.kafka.config.FakeConfigurationRepository;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager;
+import com.google.cloud.partners.pubsub.kafka.config.FakePubSubRepository;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Timestamp;
 import java.nio.charset.Charset;
@@ -37,7 +37,8 @@ public class StatisticsManagerTest {
   private static final ByteString MESSAGE_DATA =
       ByteString.copyFrom(generateMessageContent(), Charset.forName("UTF-8"));
 
-  private ConfigurationRepository configurationRepository = new FakeConfigurationRepository();
+  private ConfigurationManager configurationManager =
+      new ConfigurationManager(TestHelpers.SERVER_CONFIG, new FakePubSubRepository());
   private Clock fixedClock = Clock.fixed(Instant.ofEpochSecond(1546300800), ZoneId.systemDefault());
   private StatisticsManager statisticsManager;
 
@@ -51,7 +52,7 @@ public class StatisticsManagerTest {
 
   @Before
   public void setUp() {
-    statisticsManager = new StatisticsManager(configurationRepository, fixedClock);
+    statisticsManager = new StatisticsManager(configurationManager, fixedClock);
   }
 
   @Test

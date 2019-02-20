@@ -16,7 +16,7 @@
 
 package com.google.cloud.partners.pubsub.kafka.integration.util;
 
-import static com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository.KAFKA_TOPIC;
+import static com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager.KAFKA_TOPIC;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.Assert.fail;
 
@@ -31,7 +31,7 @@ import com.google.cloud.partners.pubsub.kafka.DefaultModule;
 import com.google.cloud.partners.pubsub.kafka.KafkaClientFactory;
 import com.google.cloud.partners.pubsub.kafka.PubsubEmulatorServer;
 import com.google.cloud.partners.pubsub.kafka.common.AdminGrpc;
-import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager;
 import com.google.cloud.partners.pubsub.kafka.integration.rule.KafkaRule;
 import com.google.cloud.partners.pubsub.kafka.integration.rule.ZookeeperRule;
 import com.google.cloud.pubsub.v1.MessageReceiver;
@@ -53,7 +53,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -80,7 +79,6 @@ public abstract class BaseIT {
   private static final String PROJECT = "emulator-testing";
   private static final String LOCALHOST = "localhost";
   private static final int PORT = 8080;
-  private static final String CONFIG_FILE = "integration-test-config.json";
   private static final ExecutorService SERVER_EXECUTOR = Executors.newSingleThreadExecutor();
   private static final CredentialsProvider NO_CREDENTIALS_PROVIDER = new NoCredentialsProvider();
   private static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
@@ -96,7 +94,7 @@ public abstract class BaseIT {
 
   protected static boolean USE_SSL = false;
   private static PubsubEmulatorServer pubsubEmulatorServer;
-  private static ConfigurationRepository configurationRepository;
+  private static ConfigurationManager configurationRepository;
   private static KafkaClientFactory kafkaClientFactory;
 
   /**
@@ -120,7 +118,7 @@ public abstract class BaseIT {
 
     Injector injector = getInjector();
     pubsubEmulatorServer = injector.getInstance(PubsubEmulatorServer.class);
-    configurationRepository = injector.getInstance(ConfigurationRepository.class);
+    configurationRepository = injector.getInstance(ConfigurationManager.class);
     kafkaClientFactory = injector.getInstance(KafkaClientFactory.class);
 
     SERVER_EXECUTOR.submit(
@@ -196,36 +194,23 @@ public abstract class BaseIT {
 
   // Gets the Guice Injector based on the specified configuration
   private static Injector getInjector() throws IOException {
+    File serverConfig = TEMPORARY_FOLDER.newFile();
+    File pubSubRepository = TEMPORARY_FOLDER.newFile();
+    Files.write(pubSubRepository.toPath(), Configurations.PUBSUB_CONFIG_JSON.getBytes(UTF_8));
+
     if (!USE_SSL) {
-      return Guice.createInjector(
-          new DefaultModule(ClassLoader.getSystemResource(CONFIG_FILE).getPath(), false));
+      Files.write(serverConfig.toPath(), Configurations.SERVER_CONFIG_JSON.getBytes(UTF_8));
     } else {
-      // Build a config, set the fully qualified path to the certs, and save
-      File newConfig = TEMPORARY_FOLDER.newFile();
-      String certPath = ClassLoader.getSystemResource("server.crt").getPath();
-      String keyPath = ClassLoader.getSystemResource("server.key").getPath();
-      String content =
-          String.join(
-              "\n",
-              Files.readAllLines(
-                  Paths.get(ClassLoader.getSystemResource(CONFIG_FILE).getPath()), UTF_8));
-      Files.write(
-          newConfig.toPath(),
-          content
+      // Update certificate paths
+      String updated =
+          Configurations.SSL_SERVER_CONFIG_JSON
+              .replace("/path/to/server.crt", ClassLoader.getSystemResource("server.crt").getPath())
               .replace(
-                  "\"port\": 8080",
-                  "\"port\": 8080,\n"
-                      + "    \"security\": {\n"
-                      + "      \"certificateChainFile\": \""
-                      + certPath
-                      + "\",\n"
-                      + "      \"privateKeyFile\": \""
-                      + keyPath
-                      + "\"\n"
-                      + "    }")
-              .getBytes(UTF_8));
-      return Guice.createInjector(new DefaultModule(newConfig.getAbsolutePath(), false));
+                  "/path/to/server.key", ClassLoader.getSystemResource("server.key").getPath());
+      Files.write(serverConfig.toPath(), updated.getBytes(UTF_8));
     }
+    return Guice.createInjector(
+        new DefaultModule(serverConfig.getPath(), pubSubRepository.getPath()));
   }
 
   protected Subscription getSubscriptionByTopic(String topicName) {

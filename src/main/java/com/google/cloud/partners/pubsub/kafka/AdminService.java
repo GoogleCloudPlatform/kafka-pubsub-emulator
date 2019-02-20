@@ -31,7 +31,7 @@ import com.google.cloud.partners.pubsub.kafka.common.Metric;
 import com.google.cloud.partners.pubsub.kafka.common.StatisticsConsolidation;
 import com.google.cloud.partners.pubsub.kafka.common.StatisticsRequest;
 import com.google.cloud.partners.pubsub.kafka.common.StatisticsResponse;
-import com.google.cloud.partners.pubsub.kafka.config.ConfigurationRepository;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager;
 import com.google.cloud.partners.pubsub.kafka.enums.MetricProperty;
 import com.google.common.collect.Lists;
 import com.google.inject.Inject;
@@ -55,17 +55,15 @@ class AdminService extends AdminImplBase {
   private static final String DECIMAL_FORMAT = "%19.2f";
   private static final String FORMAT = "%d";
 
-  private final ConfigurationRepository configurationRepository;
+  private final ConfigurationManager configurationManager;
   private final StatisticsManager statisticsManager;
   private final Clock clock;
   private final Instant startedAt;
 
   @Inject
   AdminService(
-      ConfigurationRepository configurationRepository,
-      Clock clock,
-      StatisticsManager statisticsManager) {
-    this.configurationRepository = configurationRepository;
+      ConfigurationManager configurationManager, Clock clock, StatisticsManager statisticsManager) {
+    this.configurationManager = configurationManager;
     this.clock = clock;
     this.startedAt = clock.instant();
     this.statisticsManager = statisticsManager;
@@ -78,7 +76,7 @@ class AdminService extends AdminImplBase {
     try {
       responseObserver.onNext(
           ConfigurationResponse.newBuilder()
-              .setContent(JsonFormat.printer().print(configurationRepository.getConfiguration()))
+              .setContent(JsonFormat.printer().print(configurationManager.getPubSub()))
               .setExtension(Extension.JSON)
               .build());
       responseObserver.onCompleted();
@@ -115,9 +113,10 @@ class AdminService extends AdminImplBase {
 
     StatisticsResponse response =
         StatisticsResponse.newBuilder()
-            .setPublisherExecutors(configurationRepository.getKafka().getProducerExecutors())
+            .setPublisherExecutors(
+                configurationManager.getServer().getKafka().getProducerExecutors())
             .setSubscriberExecutors(
-                configurationRepository.getKafka().getConsumersPerSubscription())
+                configurationManager.getServer().getKafka().getConsumersPerSubscription())
             .putAllPublisherByTopic(publishResultByTopic)
             .putAllSubscriberByTopic(subscriberResultByTopic)
             .build();
@@ -145,10 +144,10 @@ class AdminService extends AdminImplBase {
 
   private Map<String, StatisticsConsolidation> processResult(
       Function<String, StatisticsConsolidation> function) {
-    return configurationRepository
+    return configurationManager
         .getProjects()
         .stream()
-        .flatMap(project -> configurationRepository.getTopics(project).stream())
+        .flatMap(project -> configurationManager.getTopics(project).stream())
         .map(Topic::getName)
         .collect(Collectors.toMap(Function.identity(), function));
   }

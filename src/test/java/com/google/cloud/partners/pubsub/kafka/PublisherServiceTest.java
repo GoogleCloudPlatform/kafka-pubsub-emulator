@@ -30,7 +30,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import com.google.cloud.partners.pubsub.kafka.config.FakeConfigurationRepository;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager;
+import com.google.cloud.partners.pubsub.kafka.config.FakePubSubRepository;
 import com.google.protobuf.ByteString;
 import com.google.pubsub.v1.DeleteTopicRequest;
 import com.google.pubsub.v1.GetTopicRequest;
@@ -90,7 +91,9 @@ public class PublisherServiceTest {
     kafkaClientFactory = new MockKafkaClientFactory();
     publisher =
         new PublisherService(
-            new FakeConfigurationRepository(), kafkaClientFactory, statisticsManager);
+            new ConfigurationManager(TestHelpers.SERVER_CONFIG, new FakePubSubRepository()),
+            kafkaClientFactory,
+            statisticsManager);
     grpcServerRule.getServiceRegistry().addService(publisher);
     blockingStub = PublisherGrpc.newBlockingStub(grpcServerRule.getChannel());
   }

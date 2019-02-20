@@ -18,12 +18,17 @@ package com.google.cloud.partners.pubsub.kafka;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+import com.google.cloud.partners.pubsub.kafka.config.Project;
+import com.google.cloud.partners.pubsub.kafka.config.PubSub;
+import com.google.cloud.partners.pubsub.kafka.config.Server;
+import com.google.cloud.partners.pubsub.kafka.config.Server.Kafka;
+import com.google.cloud.partners.pubsub.kafka.config.Server.Security;
+import com.google.cloud.partners.pubsub.kafka.config.Subscription;
+import com.google.cloud.partners.pubsub.kafka.config.Topic;
+import com.google.common.collect.ImmutableList;
 import com.google.protobuf.ByteString;
 import com.google.pubsub.v1.PubsubMessage;
-import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -47,11 +52,164 @@ public class TestHelpers {
   public static final String PROJECT2_SUBSCRIPTION3 =
       "projects/project-2/subscriptions/subscription-3";
   public static final String CONFIG_FILE = "unit-test-config.json";
+  public static final String PUBSUB_FILE = "unit-test-pubsub.json";
 
-  public static String getTestConfigJson() throws IOException {
-    return String.join(
-        "\n", Files.readAllLines(Paths.get(ClassLoader.getSystemResource(CONFIG_FILE).getPath())));
-  }
+  public static final String SERVER_JSON =
+      "{\n"
+          + "  \"port\": 8080,\n"
+          + "  \"security\": {\n"
+          + "    \"certificateChainFile\": \"/path/to/server.crt\",\n"
+          + "    \"privateKeyFile\": \"/path/to/server.key\"\n"
+          + "  },\n"
+          + "  \"kafka\": {\n"
+          + "    \"bootstrapServers\": [\"server1:2192\", \"server2:2192\"],\n"
+          + "    \"producerProperties\": {\n"
+          + "      \"linger.ms\": \"5\",\n"
+          + "      \"batch.size\": \"1000000\",\n"
+          + "      \"buffer.memory\": \"32000000\"\n"
+          + "    },\n"
+          + "    \"producerExecutors\": 4,\n"
+          + "    \"consumerProperties\": {\n"
+          + "      \"max.poll.records\": \"1000\"\n"
+          + "    },\n"
+          + "    \"consumersPerSubscription\": 4\n"
+          + "  }\n"
+          + "}";
+
+  public static final Server SERVER_CONFIG =
+      Server.newBuilder()
+          .setPort(8080)
+          .setSecurity(
+              Security.newBuilder()
+                  .setCertificateChainFile("/path/to/server.crt")
+                  .setPrivateKeyFile("/path/to/server.key")
+                  .build())
+          .setKafka(
+              Kafka.newBuilder()
+                  .addAllBootstrapServers(ImmutableList.of("server1:2192", "server2:2192"))
+                  .putConsumerProperties("max.poll.records", "1000")
+                  .putProducerProperties("linger.ms", "5")
+                  .putProducerProperties("batch.size", "1000000")
+                  .putProducerProperties("buffer.memory", "32000000")
+                  .setProducerExecutors(4)
+                  .setConsumersPerSubscription(4)
+                  .build())
+          .build();
+
+  public static final String PUBSUB_JSON =
+      "{\n"
+          + "  \"projects\": [{\n"
+          + "    \"name\": \"project-1\",\n"
+          + "    \"topics\": [{\n"
+          + "      \"name\": \"topic-1\",\n"
+          + "      \"kafkaTopic\": \"kafka-topic-1\",\n"
+          + "      \"subscriptions\": [{\n"
+          + "        \"name\": \"subscription-1\",\n"
+          + "        \"ackDeadlineSeconds\": 10\n"
+          + "      }, {\n"
+          + "        \"name\": \"subscription-2\",\n"
+          + "        \"ackDeadlineSeconds\": 10\n"
+          + "      }]\n"
+          + "    }, {\n"
+          + "      \"name\": \"topic-2\",\n"
+          + "      \"kafkaTopic\": \"kafka-topic-2\",\n"
+          + "      \"subscriptions\": [{\n"
+          + "        \"name\": \"subscription-3\",\n"
+          + "        \"ackDeadlineSeconds\": 30\n"
+          + "      }, {\n"
+          + "        \"name\": \"subscription-4\",\n"
+          + "        \"ackDeadlineSeconds\": 45\n"
+          + "      }]\n"
+          + "    }]\n"
+          + "  }, {\n"
+          + "    \"name\": \"project-2\",\n"
+          + "    \"topics\": [{\n"
+          + "      \"name\": \"topic-1\",\n"
+          + "      \"kafkaTopic\": \"kafka-topic-1\",\n"
+          + "      \"subscriptions\": [{\n"
+          + "        \"name\": \"subscription-1\",\n"
+          + "        \"ackDeadlineSeconds\": 10\n"
+          + "      }, {\n"
+          + "        \"name\": \"subscription-2\",\n"
+          + "        \"ackDeadlineSeconds\": 10\n"
+          + "      }]\n"
+          + "    }, {\n"
+          + "      \"name\": \"topic-2\",\n"
+          + "      \"kafkaTopic\": \"kafka-topic-2\",\n"
+          + "      \"subscriptions\": [{\n"
+          + "        \"name\": \"subscription-3\",\n"
+          + "        \"ackDeadlineSeconds\": 30\n"
+          + "      }]\n"
+          + "    }]\n"
+          + "  }]\n"
+          + "}";
+
+  public static final PubSub PUBSUB_CONFIG =
+      PubSub.newBuilder()
+          .addProjects(
+              Project.newBuilder()
+                  .setName("project-1")
+                  .addTopics(
+                      Topic.newBuilder()
+                          .setName("topic-1")
+                          .setKafkaTopic("kafka-topic-1")
+                          .addSubscriptions(
+                              Subscription.newBuilder()
+                                  .setName("subscription-1")
+                                  .setAckDeadlineSeconds(10)
+                                  .build())
+                          .addSubscriptions(
+                              Subscription.newBuilder()
+                                  .setName("subscription-2")
+                                  .setAckDeadlineSeconds(10)
+                                  .build())
+                          .build())
+                  .addTopics(
+                      Topic.newBuilder()
+                          .setName("topic-2")
+                          .setKafkaTopic("kafka-topic-2")
+                          .addSubscriptions(
+                              Subscription.newBuilder()
+                                  .setName("subscription-3")
+                                  .setAckDeadlineSeconds(30)
+                                  .build())
+                          .addSubscriptions(
+                              Subscription.newBuilder()
+                                  .setName("subscription-4")
+                                  .setAckDeadlineSeconds(45)
+                                  .build())
+                          .build())
+                  .build())
+          .addProjects(
+              Project.newBuilder()
+                  .setName("project-2")
+                  .addTopics(
+                      Topic.newBuilder()
+                          .setName("topic-1")
+                          .setKafkaTopic("kafka-topic-1")
+                          .addSubscriptions(
+                              Subscription.newBuilder()
+                                  .setName("subscription-1")
+                                  .setAckDeadlineSeconds(10)
+                                  .build())
+                          .addSubscriptions(
+                              Subscription.newBuilder()
+                                  .setName("subscription-2")
+                                  .setAckDeadlineSeconds(10)
+                                  .build())
+                          .build())
+                  .addTopics(
+                      Topic.newBuilder()
+                          .setName("topic-2")
+                          .setKafkaTopic("kafka-topic-2")
+                          .addSubscriptions(
+                              Subscription.newBuilder()
+                                  .setName("subscription-3")
+                                  .setAckDeadlineSeconds(30)
+                                  .build())
+                          .build())
+                  .build())
+          .build();
 
   /** Generate a sequence of PubsubMessage objects. */
   static List<PubsubMessage> generatePubsubMessages(int howMany) {

@@ -46,16 +46,7 @@ message PubSub {
   repeated Project projects = 1;
 }
 
-// Configuration for the Kafka-specific details of the emulator
-message Kafka {
-  repeated string bootstrap_servers = 1;
-  map<string, string> producer_properties = 2;
-  int32 producer_executors = 3;
-  map<string, string> consumer_properties = 4;
-  int32 consumers_per_subscription = 5;
-}
-
-// Server settings
+// Top-level configuration for the emulator server
 message Server {
   // TLS security settings
   message Security {
@@ -63,13 +54,16 @@ message Server {
     string private_key_file = 2;
   }
 
+  // Configuration for the Kafka-specific details of the emulator
+  message Kafka {
+    repeated string bootstrap_servers = 1;
+    map<string, string> producer_properties = 2;
+    int32 producer_executors = 3;
+    map<string, string> consumer_properties = 4;
+    int32 consumers_per_subscription = 5;
+  }
+
   int32 port = 1;
   Security security = 2;
-}
-
-// Top-level configuration for the emulator
-message Configuration {
-  Server server = 1;
-  Kafka kafka = 2;
-  PubSub pubsub = 3;
+  Kafka kafka = 3;
 }
