@@ -1,15 +1,12 @@
 package com.google.cloud.partners.pubsub.kafka;
 
 import java.nio.ByteBuffer;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import org.apache.kafka.clients.consumer.Consumer;
 
 /** Wrapper class around a KafkaConsumer to ensure synchronization of access across threads. */
 class SynchronizedConsumer {
 
-  private final Lock lock = new ReentrantLock();
   private final Consumer<String, ByteBuffer> consumer;
 
   SynchronizedConsumer(Consumer<String, ByteBuffer> consumer) {

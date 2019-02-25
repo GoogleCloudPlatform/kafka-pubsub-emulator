@@ -205,7 +205,7 @@ public class PublisherServiceTest {
     assertThat(
         response.getTopicsList(),
         Matchers.contains(
-            com.google.pubsub.v1.Topic.newBuilder()
+            Topic.newBuilder()
                 .setName("projects/project-1/topics/topic-2")
                 .putLabels(KAFKA_TOPIC, "kafka-topic-2")
                 .build()));

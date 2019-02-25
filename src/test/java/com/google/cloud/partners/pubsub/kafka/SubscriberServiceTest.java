@@ -187,7 +187,15 @@ public class SubscriberServiceTest {
             .setSubscription(TestHelpers.PROJECT1_SUBSCRIPTION1)
             .build();
     Subscription response = blockingStub.getSubscription(request);
-    assertThat(request, Matchers.equalTo(request));
+    assertThat(
+        response,
+        Matchers.equalTo(
+            Subscription.newBuilder()
+                .setName(TestHelpers.PROJECT1_SUBSCRIPTION1)
+                .setTopic(TestHelpers.PROJECT1_TOPIC1)
+                .putLabels(KAFKA_TOPIC, "kafka-topic-1")
+                .setAckDeadlineSeconds(10)
+                .build()));
   }
 
   @Test
