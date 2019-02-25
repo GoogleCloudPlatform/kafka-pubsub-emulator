@@ -57,11 +57,13 @@ class StatisticsManager {
     }
   }
 
-  Map<String, StatisticsInformation> getPublishInformationByTopic() {
+  /** Returns copy of publishInformationByTopic */
+  public Map<String, StatisticsInformation> getPublishInformationByTopic() {
     return ImmutableMap.copyOf(publishInformationByTopic);
   }
 
-  Map<String, StatisticsInformation> getSubscriberInformationByTopic() {
+  /** Returns copy of subscriberInformationByTopic */
+  public Map<String, StatisticsInformation> getSubscriberInformationByTopic() {
     return ImmutableMap.copyOf(subscriberInformationByTopic);
   }
 
@@ -107,11 +109,6 @@ class StatisticsManager {
   }
 
   void addSubscriberInformation(Subscription subscription) {
-    this.getSubscriberInformationByTopic()
-        .putIfAbsent(subscription.getTopic(), new StatisticsInformation());
-  }
-
-  public void removeSubscriberInformation(String topic) {
-    this.getSubscriberInformationByTopic().remove(topic);
+    subscriberInformationByTopic.putIfAbsent(subscription.getTopic(), new StatisticsInformation());
   }
 }

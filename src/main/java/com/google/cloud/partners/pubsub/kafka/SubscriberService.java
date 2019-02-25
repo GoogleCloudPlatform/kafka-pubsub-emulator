@@ -137,7 +137,6 @@ class SubscriberService extends SubscriberImplBase {
   public void deleteSubscription(
       DeleteSubscriptionRequest request, StreamObserver<Empty> responseObserver) {
     try {
-
       logger.atFine().log("Deleting Subscription %s", request);
       configurationManager.deleteSubscription(request.getSubscription());
       subscriptions.get(request.getSubscription()).stopAsync().awaitTerminated();
