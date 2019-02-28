@@ -119,10 +119,10 @@ class SubscriberService extends SubscriberImplBase {
       Subscription request, StreamObserver<Subscription> responseObserver) {
     try {
       logger.atFine().log("Creating Subscription %s", request);
-      configurationManager.createSubscription(request);
-      subscriptions.put(request.getName(), subscriptionManagerFactory.create(request));
-      statisticsManager.addSubscriberInformation(request);
-      responseObserver.onNext(request);
+      Subscription subscription = configurationManager.createSubscription(request);
+      subscriptions.put(subscription.getName(), subscriptionManagerFactory.create(subscription));
+      statisticsManager.addSubscriberInformation(subscription);
+      responseObserver.onNext(subscription);
       responseObserver.onCompleted();
     } catch (ConfigurationAlreadyExistsException e) {
       logger.atWarning().withCause(e).log("Subscription already exists");

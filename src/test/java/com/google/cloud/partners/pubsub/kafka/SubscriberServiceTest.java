@@ -118,11 +118,18 @@ public class SubscriberServiceTest {
             .setTopic(TestHelpers.PROJECT1_TOPIC1)
             .setName("projects/project-1/subscriptions/new-subscriptions")
             .build();
-    when(mockSubscriptionManagerFactory.create(request))
+    Subscription builtRequest =
+        request
+            .toBuilder()
+            .setAckDeadlineSeconds(10)
+            .putLabels(KAFKA_TOPIC, "kafka-topic-1")
+            .build();
+
+    when(mockSubscriptionManagerFactory.create(builtRequest))
         .thenReturn(mock(SubscriptionManager.class));
 
-    assertThat(blockingStub.createSubscription(request), Matchers.equalTo(request));
-    verify(mockSubscriptionManagerFactory).create(request);
+    assertThat(blockingStub.createSubscription(request), Matchers.equalTo(builtRequest));
+    verify(mockSubscriptionManagerFactory).create(builtRequest);
   }
 
   @Test

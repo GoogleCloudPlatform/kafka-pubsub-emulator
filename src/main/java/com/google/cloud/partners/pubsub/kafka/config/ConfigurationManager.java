@@ -160,18 +160,22 @@ public final class ConfigurationManager {
   }
 
   /** Updates the managed Server when a new Topic is created. */
-  public final void createTopic(com.google.pubsub.v1.Topic topic)
+  public final com.google.pubsub.v1.Topic createTopic(com.google.pubsub.v1.Topic topic)
       throws ConfigurationAlreadyExistsException {
     ProjectTopicName projectTopicName = ProjectTopicName.parse(topic.getName());
     if (getTopicByName(topic.getName()).isPresent()) {
       throw new ConfigurationAlreadyExistsException(
           "Topic " + projectTopicName.toString() + " already exists");
     }
+    com.google.pubsub.v1.Topic.Builder builder = topic.toBuilder();
     if (topic.getLabelsOrDefault(KAFKA_TOPIC, null) == null) {
-      topic = topic.toBuilder().putLabels(KAFKA_TOPIC, projectTopicName.getTopic()).build();
+      builder.putLabels(KAFKA_TOPIC, projectTopicName.getTopic()).build();
     }
-    topicsByProject.put(ProjectName.of(projectTopicName.getProject()).toString(), topic);
+
+    com.google.pubsub.v1.Topic built = builder.build();
+    topicsByProject.put(ProjectName.of(projectTopicName.getProject()).toString(), built);
     pubSubRepository.save(getPubSub());
+    return built;
   }
 
   /** Updates the managed Server when a Topic is deleted. */
@@ -189,7 +193,8 @@ public final class ConfigurationManager {
   }
 
   /** Updates the managed Server when a new Subscription is created. */
-  public final void createSubscription(com.google.pubsub.v1.Subscription subscription)
+  public final com.google.pubsub.v1.Subscription createSubscription(
+      com.google.pubsub.v1.Subscription subscription)
       throws ConfigurationAlreadyExistsException, ConfigurationNotFoundException {
     ProjectTopicName projectTopicName = ProjectTopicName.parse(subscription.getTopic());
     ProjectSubscriptionName projectSubscriptionName =
@@ -210,9 +215,11 @@ public final class ConfigurationManager {
     if (subscription.getAckDeadlineSeconds() == 0) {
       builder.setAckDeadlineSeconds(10).build();
     }
+    com.google.pubsub.v1.Subscription built = builder.build();
     subscriptionsByProject.put(
-        ProjectName.of(projectSubscriptionName.getProject()).toString(), builder.build());
+        ProjectName.of(projectSubscriptionName.getProject()).toString(), built);
     pubSubRepository.save(getPubSub());
+    return built;
   }
 
   /** Updates the managed Server when a Subscription is deleted. */

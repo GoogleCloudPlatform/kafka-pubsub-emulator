@@ -99,8 +99,8 @@ class PublisherService extends PublisherImplBase {
   public void createTopic(Topic request, StreamObserver<Topic> responseObserver) {
     try {
       logger.atFine().log("Creating Topic %s", request);
-      configurationManager.createTopic(request);
-      responseObserver.onNext(request);
+      Topic topic = configurationManager.createTopic(request);
+      responseObserver.onNext(topic);
       responseObserver.onCompleted();
     } catch (ConfigurationAlreadyExistsException e) {
       logger.atWarning().withCause(e).log("Topic already exists");
