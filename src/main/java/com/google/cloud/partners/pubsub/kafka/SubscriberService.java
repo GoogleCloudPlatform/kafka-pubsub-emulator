@@ -120,7 +120,9 @@ class SubscriberService extends SubscriberImplBase {
     try {
       logger.atFine().log("Creating Subscription %s", request);
       Subscription subscription = configurationManager.createSubscription(request);
-      subscriptions.put(subscription.getName(), subscriptionManagerFactory.create(subscription));
+      SubscriptionManager subscriptionManager = subscriptionManagerFactory.create(subscription);
+      subscriptionManager.startAsync().awaitRunning();
+      subscriptions.put(subscription.getName(), subscriptionManager);
       statisticsManager.addSubscriberInformation(subscription);
       responseObserver.onNext(subscription);
       responseObserver.onCompleted();

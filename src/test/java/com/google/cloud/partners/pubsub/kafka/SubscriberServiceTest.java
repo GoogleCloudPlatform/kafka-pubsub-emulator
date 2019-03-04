@@ -124,11 +124,13 @@ public class SubscriberServiceTest {
             .setAckDeadlineSeconds(10)
             .putLabels(KAFKA_TOPIC, "kafka-topic-1")
             .build();
-
-    when(mockSubscriptionManagerFactory.create(builtRequest))
-        .thenReturn(mock(SubscriptionManager.class));
+    SubscriptionManager fakeSubscriptionManager =
+        new FakeSubscriptionManager(
+            builtRequest, mock(SubscriptionManager.class), mockKafkaClientFactory);
+    when(mockSubscriptionManagerFactory.create(builtRequest)).thenReturn(fakeSubscriptionManager);
 
     assertThat(blockingStub.createSubscription(request), Matchers.equalTo(builtRequest));
+    assertThat(fakeSubscriptionManager.isRunning(), Matchers.is(true));
     verify(mockSubscriptionManagerFactory).create(builtRequest);
   }
 
@@ -786,12 +788,6 @@ public class SubscriberServiceTest {
             .setAckDeadlineSeconds(45)
             .build();
 
-    Consumer<String, ByteBuffer> mockConsumer = (Consumer<String, ByteBuffer>) mock(Consumer.class);
-    when(mockKafkaClientFactory.createConsumer(subscription1.getName())).thenReturn(mockConsumer);
-    when(mockKafkaClientFactory.createConsumer(subscription2.getName())).thenReturn(mockConsumer);
-    when(mockKafkaClientFactory.createConsumer(subscription3.getName())).thenReturn(mockConsumer);
-    when(mockConsumer.partitionsFor(anyString())).thenReturn(Collections.emptyList());
-
     fakeSubscriptionManager1 =
         spy(
             new FakeSubscriptionManager(
@@ -865,6 +861,11 @@ public class SubscriberServiceTest {
     @Override
     public String toString() {
       return mockDelegate.toString();
+    }
+
+    @Override
+    protected void startUp() {
+      // Noop
     }
   }
 }
