@@ -27,11 +27,11 @@ import static org.apache.kafka.clients.producer.ProducerConfig.KEY_SERIALIZER_CL
 import static org.apache.kafka.clients.producer.ProducerConfig.MAX_BLOCK_MS_CONFIG;
 import static org.apache.kafka.clients.producer.ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG;
 
-import com.google.cloud.partners.pubsub.kafka.properties.ApplicationProperties;
-import com.google.cloud.partners.pubsub.kafka.properties.ConsumerProperties;
-import com.google.cloud.partners.pubsub.kafka.properties.ProducerProperties;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager;
 import java.nio.ByteBuffer;
 import java.util.Properties;
+import javax.inject.Inject;
+import javax.inject.Singleton;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -40,7 +40,8 @@ import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 
 /** Factory implementation for building Kafka client objects based on a shared set of properties. */
-public class KafkaClientFactoryImpl implements KafkaClientFactory {
+@Singleton
+class DefaultKafkaClientFactory implements KafkaClientFactory {
 
   private static final String ACKS_CONFIG_VALUE = "all";
   private static final String PRODUCER_KEY_SERIALIZER_CONFIG_VALUE =
@@ -53,14 +54,19 @@ public class KafkaClientFactoryImpl implements KafkaClientFactory {
   private static final String CONSUMER_VALUE_DESERIALIZER_CONFIG_VALUE =
       "org.apache.kafka.common.serialization.ByteBufferDeserializer";
   private static final int MAX_BLOCK_MS_VALUE = 2000;
-  private final ApplicationProperties applicationProperties;
+
+  private final ConfigurationManager configurationManager;
+  private final String bootstrapServersJoined;
 
   /**
    * Create a new KafkaClientFactoryImpl which will be used to provide instances of Kafka client
    * objects to produce or consume records to/from topics.
    */
-  public KafkaClientFactoryImpl() {
-    applicationProperties = Configuration.getApplicationProperties();
+  @Inject
+  DefaultKafkaClientFactory(ConfigurationManager configurationManager) {
+    this.configurationManager = configurationManager;
+    bootstrapServersJoined =
+        String.join(",", configurationManager.getServer().getKafka().getBootstrapServersList());
   }
 
   /**
@@ -69,33 +75,24 @@ public class KafkaClientFactoryImpl implements KafkaClientFactory {
    */
   @Override
   public Consumer<String, ByteBuffer> createConsumer(String subscription) {
-    ConsumerProperties consumerProperties =
-        applicationProperties.getKafkaProperties().getConsumerProperties();
     Properties properties = new Properties();
-    properties.putAll(consumerProperties.getProperties());
-    properties.setProperty(
-        ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,
-        applicationProperties.getKafkaProperties().getBootstrapServers());
+    properties.putAll(configurationManager.getServer().getKafka().getConsumerPropertiesMap());
+    properties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServersJoined);
     properties.setProperty(ENABLE_AUTO_COMMIT_CONFIG, FALSE.toString());
     properties.setProperty(AUTO_OFFSET_RESET_CONFIG, AUTO_OFFSET_RESET_CONFIG_VALUE);
     properties.setProperty(KEY_DESERIALIZER_CLASS_CONFIG, CONSUMER_KEY_DESERIALIZER_CONFIG_VALUE);
     properties.setProperty(
         VALUE_DESERIALIZER_CLASS_CONFIG, CONSUMER_VALUE_DESERIALIZER_CONFIG_VALUE);
     properties.setProperty(GROUP_ID_CONFIG, subscription);
-    properties.putAll(consumerProperties.getProperties());
     return new KafkaConsumer<>(properties);
   }
 
   /** Builds and returns a new KafkaProducer object. */
   @Override
   public Producer<String, ByteBuffer> createProducer() {
-    ProducerProperties producerProperties =
-        applicationProperties.getKafkaProperties().getProducerProperties();
     Properties properties = new Properties();
-    properties.putAll(producerProperties.getProperties());
-    properties.setProperty(
-        ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,
-        applicationProperties.getKafkaProperties().getBootstrapServers());
+    properties.putAll(configurationManager.getServer().getKafka().getProducerPropertiesMap());
+    properties.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServersJoined);
     properties.setProperty(ACKS_CONFIG, ACKS_CONFIG_VALUE);
     properties.setProperty(KEY_SERIALIZER_CLASS_CONFIG, PRODUCER_KEY_SERIALIZER_CONFIG_VALUE);
     properties.setProperty(VALUE_SERIALIZER_CLASS_CONFIG, PRODUCER_VALUE_SERIALIZER_CONFIG_VALUE);

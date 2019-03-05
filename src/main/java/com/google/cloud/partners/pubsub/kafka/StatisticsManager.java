@@ -16,98 +16,99 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
-import static java.util.stream.Collectors.toMap;
-
-import com.google.cloud.partners.pubsub.kafka.properties.KafkaProperties;
-import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.flogger.FluentLogger;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Timestamp;
+import com.google.pubsub.v1.Subscription;
+import com.google.pubsub.v1.Topic;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Logger;
+import javax.inject.Inject;
+import javax.inject.Singleton;
 
 /** Responsible to collect statistics information of publish/consumed messages on emulator. */
-public class StatisticsManager {
+@Singleton
+class StatisticsManager {
 
-  private static final Logger LOGGER = Logger.getLogger(StatisticsManager.class.getName());
-  private final Map<String, String> subscriptionByTopic;
+  private static final FluentLogger logger = FluentLogger.forEnclosingClass();
+
+  private final ConfigurationManager configurationManager;
   private final Map<String, StatisticsInformation> publishInformationByTopic =
       new ConcurrentHashMap<>();
   private final Map<String, StatisticsInformation> subscriberInformationByTopic =
       new ConcurrentHashMap<>();
   private final Clock clock;
 
-  public StatisticsManager(Clock clock) {
+  @Inject
+  StatisticsManager(ConfigurationManager configurationManager, Clock clock) {
+    this.configurationManager = configurationManager;
     this.clock = clock;
-    KafkaProperties kafkaProperties = Configuration.getApplicationProperties().getKafkaProperties();
 
-    subscriptionByTopic =
-        kafkaProperties
-            .getConsumerProperties()
-            .getSubscriptions()
-            .stream()
-            .collect(toMap(SubscriptionProperties::getName, SubscriptionProperties::getTopic));
-
-    kafkaProperties
-        .getTopics()
-        .forEach(
-            topic -> {
-              publishInformationByTopic.put(topic, new StatisticsInformation());
-              subscriberInformationByTopic.put(topic, new StatisticsInformation());
-            });
+    for (String project : configurationManager.getProjects()) {
+      for (Topic topic : configurationManager.getTopics(project)) {
+        publishInformationByTopic.put(topic.getName(), new StatisticsInformation());
+        subscriberInformationByTopic.put(topic.getName(), new StatisticsInformation());
+      }
+    }
   }
 
+  /** Returns copy of publishInformationByTopic */
   public Map<String, StatisticsInformation> getPublishInformationByTopic() {
-    return publishInformationByTopic;
+    return ImmutableMap.copyOf(publishInformationByTopic);
   }
 
+  /** Returns copy of subscriberInformationByTopic */
   public Map<String, StatisticsInformation> getSubscriberInformationByTopic() {
-    return subscriberInformationByTopic;
+    return ImmutableMap.copyOf(subscriberInformationByTopic);
   }
 
-  public void computePublish(String topic, ByteString messageData, long publishAt) {
+  void computePublish(String topic, ByteString messageData, long publishAt) {
     if (!publishInformationByTopic.containsKey(topic)) {
-      LOGGER.info("Topic not found to compute publish information.");
+      logger.atWarning().log("Unable to record publish statistics for Topic %s", topic);
+    } else {
+      publishInformationByTopic
+          .get(topic)
+          .compute(clock.millis() - publishAt, messageData.toStringUtf8().length());
+    }
+  }
+
+  void computePublishError(String topic) {
+    StatisticsInformation statisticsInformation = publishInformationByTopic.get(topic);
+    if (statisticsInformation == null) {
+      logger.atWarning().log("Unable to record publish error for Topic %s", topic);
       return;
     }
-    publishInformationByTopic
-        .get(topic)
-        .compute(clock.millis() - publishAt, messageData.toStringUtf8().length());
+    statisticsInformation.computeError();
   }
 
-  public void computePublishError(String topic) {
-    if (!publishInformationByTopic.containsKey(topic)) {
-      LOGGER.info("Topic not found to compute publish information.");
-      return;
+  void computeSubscriber(String subscription, ByteString messageData, Timestamp publishTime) {
+    Optional<Subscription> subscriptionByName =
+        configurationManager.getSubscriptionByName(subscription);
+    if (subscriptionByName.isPresent()) {
+      StatisticsInformation statisticsInformation =
+          subscriberInformationByTopic.get(subscriptionByName.get().getTopic());
+      if (statisticsInformation == null) {
+        logger.atWarning().log(
+            "Unable to record subscriber statistics error for Subscription %s (Topic %s not found)",
+            subscription, subscriberInformationByTopic.get(subscriptionByName.get().getTopic()));
+        return;
+      }
+      Instant publishTimeToInstant =
+          Instant.ofEpochSecond(publishTime.getSeconds(), publishTime.getNanos());
+      long subscriptionLatency = clock.millis() - publishTimeToInstant.toEpochMilli();
+      statisticsInformation.compute(subscriptionLatency, messageData.toStringUtf8().length());
+    } else {
+      logger.atWarning().log(
+          "Unable to record subscriber statistics error for Subscription %s", subscription);
     }
-    publishInformationByTopic.get(topic).computeError();
   }
 
-  public void computeSubscriber(
-      String subscription, ByteString messageData, Timestamp publishTime) {
-
-    if (!subscriptionByTopic.containsKey(subscription)) {
-      LOGGER.info("Subscription not found to compute subscriber information.");
-      return;
-    }
-
-    String topic = subscriptionByTopic.get(subscription);
-    Instant publishTimeToInstant =
-        Instant.ofEpochSecond(publishTime.getSeconds(), publishTime.getNanos());
-    long subscriptionLatency = clock.millis() - publishTimeToInstant.toEpochMilli();
-    subscriberInformationByTopic
-        .get(topic)
-        .compute(subscriptionLatency, messageData.toStringUtf8().length());
-  }
-
-  public void addSubscriberInformation(SubscriptionProperties subscriptionProperties) {
-    this.getSubscriberInformationByTopic()
-        .putIfAbsent(subscriptionProperties.getTopic(), new StatisticsInformation());
-  }
-
-  public void removeSubscriberInformation(String topic) {
-    this.getSubscriberInformationByTopic().remove(topic);
+  void addSubscriberInformation(Subscription subscription) {
+    subscriberInformationByTopic.putIfAbsent(subscription.getTopic(), new StatisticsInformation());
   }
 }

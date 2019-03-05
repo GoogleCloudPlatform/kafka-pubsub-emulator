@@ -18,6 +18,8 @@ package com.google.cloud.partners.pubsub.kafka;
 
 import static org.junit.Assert.assertEquals;
 
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager;
+import com.google.cloud.partners.pubsub.kafka.config.FakePubSubRepository;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Timestamp;
 import java.nio.charset.Charset;
@@ -25,26 +27,20 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Map;
+import java.util.stream.LongStream;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class StatisticsManagerTest {
 
-  public static final int DELTA = 0;
-  private static final String TEST_TOPIC_1 = "test-topic-1";
-  private static final String TEST_TOPIC_2 = "test-topic-2";
-  private static final String SUBSCRIPTION_1_TEST_TOPIC_1 = "subscription-1-to-test-topic-1";
-  private static final String SUBSCRIPTION_2_TEST_TOPIC_1 = "subscription-2-to-test-topic-1";
+  private static final int DELTA = 0;
   private static final ByteString MESSAGE_DATA =
       ByteString.copyFrom(generateMessageContent(), Charset.forName("UTF-8"));
-  private StatisticsManager statisticsManager;
-  private Clock fixedClock;
 
-  @BeforeClass
-  public static void setUpBeforeClass() {
-    TestHelpers.useTestApplicationConfig(1, 1);
-  }
+  private ConfigurationManager configurationManager =
+      new ConfigurationManager(TestHelpers.SERVER_CONFIG, new FakePubSubRepository());
+  private Clock fixedClock = Clock.fixed(Instant.ofEpochSecond(1546300800), ZoneId.systemDefault());
+  private StatisticsManager statisticsManager;
 
   private static String generateMessageContent() {
     StringBuilder stringBuffer = new StringBuilder();
@@ -56,31 +52,29 @@ public class StatisticsManagerTest {
 
   @Before
   public void setUp() {
-    fixedClock = Clock.fixed(Instant.now(), ZoneId.systemDefault());
-    statisticsManager = new StatisticsManager(fixedClock);
+    statisticsManager = new StatisticsManager(configurationManager, fixedClock);
   }
 
   @Test
   public void computePublisher() {
     long durationSeconds = 2L;
 
-    statisticsManager.computePublish(TEST_TOPIC_1, MESSAGE_DATA, fixedClock.millis() - 10L);
-    statisticsManager.computePublish(TEST_TOPIC_1, MESSAGE_DATA, fixedClock.millis() - 535L);
-    statisticsManager.computePublish(TEST_TOPIC_1, MESSAGE_DATA, fixedClock.millis() - 50L);
-    statisticsManager.computePublish(TEST_TOPIC_1, MESSAGE_DATA, fixedClock.millis() - 59L);
-    statisticsManager.computePublish(TEST_TOPIC_1, MESSAGE_DATA, fixedClock.millis() - 19L);
-    statisticsManager.computePublish(TEST_TOPIC_1, MESSAGE_DATA, fixedClock.millis() - 3L);
-    statisticsManager.computePublish(TEST_TOPIC_1, MESSAGE_DATA, fixedClock.millis() - 11L);
-    statisticsManager.computePublish(TEST_TOPIC_1, MESSAGE_DATA, fixedClock.millis() - 13L);
-    statisticsManager.computePublish(TEST_TOPIC_1, MESSAGE_DATA, fixedClock.millis() - 931L);
-    statisticsManager.computePublish(TEST_TOPIC_1, MESSAGE_DATA, fixedClock.millis() - 53L);
-    statisticsManager.computePublish(TEST_TOPIC_2, MESSAGE_DATA, fixedClock.millis() - 90L);
-    statisticsManager.computePublish(TEST_TOPIC_2, MESSAGE_DATA, fixedClock.millis() - 91L);
+    // Simulate some publish operations
+    LongStream.of(10L, 535L, 50L, 59L, 19L, 3L, 11L, 13L, 931L, 53L)
+        .forEach(
+            l ->
+                statisticsManager.computePublish(
+                    TestHelpers.PROJECT1_TOPIC1, MESSAGE_DATA, fixedClock.millis() - l));
+    statisticsManager.computePublish(
+        TestHelpers.PROJECT1_TOPIC2, MESSAGE_DATA, fixedClock.millis() - 90L);
+    statisticsManager.computePublish(
+        TestHelpers.PROJECT1_TOPIC2, MESSAGE_DATA, fixedClock.millis() - 91L);
 
     Map<String, StatisticsInformation> publishInformation =
         statisticsManager.getPublishInformationByTopic();
 
-    StatisticsInformation statisticsInformationForTopic1 = publishInformation.get(TEST_TOPIC_1);
+    StatisticsInformation statisticsInformationForTopic1 =
+        publishInformation.get(TestHelpers.PROJECT1_TOPIC1);
 
     assertEquals(168.4F, statisticsInformationForTopic1.getAverageLatency(), DELTA);
     assertEquals(10, statisticsInformationForTopic1.getCount().intValue());
@@ -88,7 +82,8 @@ public class StatisticsManagerTest {
     assertEquals(5F, statisticsInformationForTopic1.getQPS(durationSeconds), DELTA);
     assertEquals(0F, statisticsInformationForTopic1.getErrorRating(), DELTA);
 
-    StatisticsInformation statisticsInformationForTopic2 = publishInformation.get(TEST_TOPIC_2);
+    StatisticsInformation statisticsInformationForTopic2 =
+        publishInformation.get(TestHelpers.PROJECT1_TOPIC2);
 
     assertEquals(90.5F, statisticsInformationForTopic2.getAverageLatency(), DELTA);
     assertEquals(2, statisticsInformationForTopic2.getCount().intValue());
@@ -98,30 +93,38 @@ public class StatisticsManagerTest {
   }
 
   @Test
-  public void computePublisherError() {
-
-    statisticsManager.computePublishError(TEST_TOPIC_1);
-    statisticsManager.computePublish(TEST_TOPIC_1, MESSAGE_DATA, 0L);
-    statisticsManager.computePublish(TEST_TOPIC_1, MESSAGE_DATA, 0L);
-    statisticsManager.computePublish(TEST_TOPIC_1, MESSAGE_DATA, 0L);
+  public void computePublisher_hasError() {
+    statisticsManager.computePublishError(TestHelpers.PROJECT1_TOPIC1);
+    statisticsManager.computePublish(TestHelpers.PROJECT1_TOPIC1, MESSAGE_DATA, 0L);
+    statisticsManager.computePublish(TestHelpers.PROJECT1_TOPIC1, MESSAGE_DATA, 0L);
+    statisticsManager.computePublish(TestHelpers.PROJECT1_TOPIC1, MESSAGE_DATA, 0L);
 
     assertEquals(
         25F,
-        statisticsManager.getPublishInformationByTopic().get(TEST_TOPIC_1).getErrorRating(),
+        statisticsManager
+            .getPublishInformationByTopic()
+            .get(TestHelpers.PROJECT1_TOPIC1)
+            .getErrorRating(),
         DELTA);
   }
 
   @Test
-  public void computePublisherErrorWithHundredPercent() {
-    statisticsManager.computePublishError(TEST_TOPIC_1);
+  public void computePublisher_allErrors() {
+    statisticsManager.computePublishError(TestHelpers.PROJECT1_TOPIC1);
 
     assertEquals(
         100F,
-        statisticsManager.getPublishInformationByTopic().get(TEST_TOPIC_1).getErrorRating(),
+        statisticsManager
+            .getPublishInformationByTopic()
+            .get(TestHelpers.PROJECT1_TOPIC1)
+            .getErrorRating(),
         DELTA);
     assertEquals(
         0F,
-        statisticsManager.getPublishInformationByTopic().get(TEST_TOPIC_2).getErrorRating(),
+        statisticsManager
+            .getPublishInformationByTopic()
+            .get(TestHelpers.PROJECT1_TOPIC2)
+            .getErrorRating(),
         DELTA);
   }
 
@@ -132,7 +135,7 @@ public class StatisticsManagerTest {
 
     Instant receveivedMessage1 = now.minusMillis(200L);
     statisticsManager.computeSubscriber(
-        SUBSCRIPTION_1_TEST_TOPIC_1,
+        TestHelpers.PROJECT1_SUBSCRIPTION1,
         MESSAGE_DATA,
         Timestamp.newBuilder()
             .setSeconds(receveivedMessage1.getEpochSecond())
@@ -141,7 +144,7 @@ public class StatisticsManagerTest {
 
     Instant receveivedMessage2 = now.minusMillis(50L);
     statisticsManager.computeSubscriber(
-        SUBSCRIPTION_2_TEST_TOPIC_1,
+        TestHelpers.PROJECT1_SUBSCRIPTION1,
         MESSAGE_DATA,
         Timestamp.newBuilder()
             .setSeconds(receveivedMessage2.getEpochSecond())
@@ -150,7 +153,7 @@ public class StatisticsManagerTest {
 
     Instant receveivedMessage3 = now.minusMillis(120L);
     statisticsManager.computeSubscriber(
-        SUBSCRIPTION_1_TEST_TOPIC_1,
+        TestHelpers.PROJECT1_SUBSCRIPTION1,
         MESSAGE_DATA,
         Timestamp.newBuilder()
             .setSeconds(receveivedMessage3.getEpochSecond())
@@ -159,7 +162,7 @@ public class StatisticsManagerTest {
 
     Instant receveivedMessage4 = now.minusMillis(10L);
     statisticsManager.computeSubscriber(
-        SUBSCRIPTION_1_TEST_TOPIC_1,
+        TestHelpers.PROJECT1_SUBSCRIPTION1,
         MESSAGE_DATA,
         Timestamp.newBuilder()
             .setSeconds(receveivedMessage4.getEpochSecond())
@@ -167,7 +170,7 @@ public class StatisticsManagerTest {
             .build());
 
     StatisticsInformation statisticsInformationForTopic1 =
-        statisticsManager.getSubscriberInformationByTopic().get(TEST_TOPIC_1);
+        statisticsManager.getSubscriberInformationByTopic().get(TestHelpers.PROJECT1_TOPIC1);
 
     assertEquals(95F, statisticsInformationForTopic1.getAverageLatency(), DELTA);
     assertEquals(4, statisticsInformationForTopic1.getCount().intValue());
@@ -175,7 +178,7 @@ public class StatisticsManagerTest {
     assertEquals(1.33F, statisticsInformationForTopic1.getQPS(durationSeconds), 0.1);
 
     StatisticsInformation statisticsInformationForTopic2 =
-        statisticsManager.getSubscriberInformationByTopic().get(TEST_TOPIC_2);
+        statisticsManager.getSubscriberInformationByTopic().get(TestHelpers.PROJECT1_TOPIC2);
 
     assertEquals(0F, statisticsInformationForTopic2.getAverageLatency(), DELTA);
     assertEquals(0, statisticsInformationForTopic2.getCount().intValue());

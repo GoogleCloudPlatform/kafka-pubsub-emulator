@@ -59,9 +59,8 @@ public final class OutstandingMessage {
   }
 
   /** Adds {@code seconds} to the expiration timestamp and returns the new value. */
-  public Instant addSecondsToDeadline(int seconds) {
+  public void addSecondsToDeadline(int seconds) {
     expiresAt = expiresAt.plusSeconds(seconds);
-    return expiresAt;
   }
 
   public String getMessageId() {

@@ -22,11 +22,12 @@ ENV port=8080
 WORKDIR /app
 
 # Copy the target directory contents into the container at /app
-ADD ./target/kafka-pubsub-emulator-$version.jar /app/kafka-pubsub-emulator.jar
+COPY ./target/kafka-pubsub-emulator-$version.jar /app/kafka-pubsub-emulator.jar
+COPY ./src/main/resources/logging.properties /app
 
 # Make port 8080 available to the world outside this container
 EXPOSE $port
 
 # Run the main application JAR at launch
-ENTRYPOINT ["java", "-jar", "kafka-pubsub-emulator.jar"]
+ENTRYPOINT ["java", "-Djava.util.logging.config.file=logging.properties", "-jar", "kafka-pubsub-emulator.jar"]
 CMD ["--help"]

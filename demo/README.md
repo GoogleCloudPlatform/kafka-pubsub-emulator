@@ -1,9 +1,10 @@
 # Preparing for running Demos
 
 ## Starting Apache Kafka in Docker
-If you already have access to the an existing Apache Kafka cluster, you can skip this section. 
-If not, the project contains a shell script for starting a basic Apache Kafka configuration running
-locally in Docker. You can download Docker for your operating system from the link below:
+
+If you already have access to an existing Apache Kafka cluster, you can skip this section. 
+If not, the project contains a shell script for starting a basic Apache Kafka configuration
+running locally in Docker. You can download Docker for your operating system from the link below:
 
 https://www.docker.com/community-edition
 
@@ -46,51 +47,24 @@ The build should complete in a few minutes and you should have a single JAR file
 `target/` directory that contains the executable binary for the emulator.
 
 ## Running the Emulator in Docker
-There are different options for running the emulator, but all of them require a YAML configuration 
-file that provides details on what Topics and Subscriptions the emulator is able to support, 
+There are different options for running the emulator, but all of them require configuration
+files that provide details on what Topics and Subscriptions the emulator is able to support, 
 as well as some additional settings that affect how the emulator behaves when communicating with 
 Kafka. More details can be found in the [README](../README.md) file within the main repository.
 
-The repository contains a configuration file that can be modified for use with the local Docker
-deployment of Kafka and can be found at 
-[`src/main/resources/application.yaml`](../src/main/resources/application.yaml).
-
-The file needs to be slightly modified before use. Issue the following commands to prepare the 
-configuration for running the emulator in the local Docker environment.
-
-```bash
-mkdir config
-sed 's/bootstrapServers: localhost:9094,localhost:9095,localhost:9096/bootstrapServers: kafka-0:9092,kafka-1:9092,kafka-2:9092/' src/main/resources/application.yaml > config/application.yaml
-```
-
-We could run the emulator locally, but let’s start a new container in Docker instead. 
-To do so, issue the following commands from the root of the repository:
-```bash
-gcloud docker -- pull us.gcr.io/kafka-pubsub-emulator/kafka-pubsub-emulator:1.0.0.0
-docker run -d -h kafka-pubsub-emulator --name kafka-pubsub-emulator \
-    --mount type=bind,src=$(pwd)/config,dst=/etc/config \
-    -p 8080:8080 \
-    --network kafka-testing \
-    us.gcr.io/kafka-pubsub-emulator/kafka-pubsub-emulator:1.0.0.0 \
-    --configuration.location=/etc/config/application.yaml
-```
-
-You should be able to see the Kafka Pub/Sub emulator running Docker when you issue this command:
-`docker container ls -f name=pubsub`. 
-
-If you want to see the log output from the emulator, you can do so by invoking 
-`docker logs <emulator container ID>`.
+For an example of a working configuration with the emulator running on Docker, see the [benchmark](./benchmark)
+directory.
 
 ## Running the Emulator REST Gateway in Docker
 If you want to run the [python-rest-client](./python-rest-client) demo, you'll also need to start up
 an instance of the PubSub Emulator Gateway, which exposes the Pub/Sub API through a REST interface.
 
 ```bash
-gcloud docker -- pull us.gcr.io/kafka-pubsub-emulator/kafka-pubsub-emulator-gateway:1.0.0.0
+gcloud docker -- pull us.gcr.io/kafka-pubsub-emulator/kafka-pubsub-emulator-gateway:<version>
 docker run -d -h kafka-pubsub-emulator-gateway --name kafka-pubsub-emulator-gateway \
     -p 8181:8181 \
     --network kafka-testing \
-    us.gcr.io/kafka-pubsub-emulator/kafka-pubsub-emulator-gateway:1.0.0.0 \
+    us.gcr.io/kafka-pubsub-emulator/kafka-pubsub-emulator-gateway:<version> \
     -a kafka-pubsub-emulator:8080
 ```
 

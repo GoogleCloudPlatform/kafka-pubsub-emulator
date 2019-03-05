@@ -16,7 +16,6 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
-import static com.google.cloud.partners.pubsub.kafka.Configuration.getApplicationProperties;
 import static com.google.cloud.partners.pubsub.kafka.enums.MetricProperty.AVG_LATENCY;
 import static com.google.cloud.partners.pubsub.kafka.enums.MetricProperty.ERROR_RATE;
 import static com.google.cloud.partners.pubsub.kafka.enums.MetricProperty.MESSAGE_COUNT;
@@ -24,7 +23,6 @@ import static com.google.cloud.partners.pubsub.kafka.enums.MetricProperty.QPS;
 import static com.google.cloud.partners.pubsub.kafka.enums.MetricProperty.THROUGHPUT;
 import static java.lang.String.format;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.cloud.partners.pubsub.kafka.common.AdminGrpc.AdminImplBase;
 import com.google.cloud.partners.pubsub.kafka.common.ConfigurationRequest;
 import com.google.cloud.partners.pubsub.kafka.common.ConfigurationResponse;
@@ -33,43 +31,56 @@ import com.google.cloud.partners.pubsub.kafka.common.Metric;
 import com.google.cloud.partners.pubsub.kafka.common.StatisticsConsolidation;
 import com.google.cloud.partners.pubsub.kafka.common.StatisticsRequest;
 import com.google.cloud.partners.pubsub.kafka.common.StatisticsResponse;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager;
 import com.google.cloud.partners.pubsub.kafka.enums.MetricProperty;
-import com.google.cloud.partners.pubsub.kafka.properties.KafkaProperties;
 import com.google.common.collect.Lists;
+import com.google.inject.Inject;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.util.JsonFormat;
+import com.google.pubsub.v1.Topic;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import javax.inject.Singleton;
 
-class AdminImpl extends AdminImplBase {
+/** Administrative functions service. */
+@Singleton
+class AdminService extends AdminImplBase {
 
   private static final String DECIMAL_FORMAT = "%19.2f";
-
   private static final String FORMAT = "%d";
 
+  private final ConfigurationManager configurationManager;
   private final StatisticsManager statisticsManager;
-
+  private final Clock clock;
   private final Instant startedAt;
 
-  AdminImpl(StatisticsManager statisticsManager) {
-    this.startedAt = Instant.now();
+  @Inject
+  AdminService(
+      ConfigurationManager configurationManager, Clock clock, StatisticsManager statisticsManager) {
+    this.configurationManager = configurationManager;
+    this.clock = clock;
+    this.startedAt = clock.instant();
     this.statisticsManager = statisticsManager;
   }
 
+  // TODO: Replace ConfigurationResponse with the actual proto
   @Override
   public void configuration(
       ConfigurationRequest request, StreamObserver<ConfigurationResponse> responseObserver) {
     try {
       responseObserver.onNext(
           ConfigurationResponse.newBuilder()
-              .setContent(Configuration.getCurrentConfiguration())
-              .setExtension(Extension.YAML)
+              .setContent(JsonFormat.printer().print(configurationManager.getPubSub()))
+              .setExtension(Extension.JSON)
               .build());
       responseObserver.onCompleted();
-    } catch (JsonProcessingException e) {
+    } catch (InvalidProtocolBufferException e) {
       responseObserver.onError(Status.INTERNAL.withCause(e).asException());
     }
   }
@@ -77,14 +88,9 @@ class AdminImpl extends AdminImplBase {
   @Override
   public void statistics(
       StatisticsRequest request, StreamObserver<StatisticsResponse> responseObserver) {
-
-    KafkaProperties kafkaProperties = getApplicationProperties().getKafkaProperties();
-
-    long durationSeconds = java.time.Duration.between(startedAt, Instant.now()).getSeconds();
-
+    long durationSeconds = java.time.Duration.between(startedAt, clock.instant()).getSeconds();
     Map<String, StatisticsInformation> publishInformationByTopic =
         statisticsManager.getPublishInformationByTopic();
-
     Map<String, StatisticsInformation> subscriberInformationByTopic =
         statisticsManager.getSubscriberInformationByTopic();
 
@@ -96,7 +102,6 @@ class AdminImpl extends AdminImplBase {
                         calculatePublisherInformation(
                             durationSeconds, publishInformationByTopic.get(topic)))
                     .build());
-
     Map<String, StatisticsConsolidation> subscriberResultByTopic =
         processResult(
             topic ->
@@ -108,8 +113,10 @@ class AdminImpl extends AdminImplBase {
 
     StatisticsResponse response =
         StatisticsResponse.newBuilder()
-            .setPublisherExecutors(kafkaProperties.getProducerProperties().getExecutors())
-            .setSubscriberExecutors(kafkaProperties.getConsumerProperties().getExecutors())
+            .setPublisherExecutors(
+                configurationManager.getServer().getKafka().getProducerExecutors())
+            .setSubscriberExecutors(
+                configurationManager.getServer().getKafka().getConsumersPerSubscription())
             .putAllPublisherByTopic(publishResultByTopic)
             .putAllSubscriberByTopic(subscriberResultByTopic)
             .build();
@@ -137,10 +144,11 @@ class AdminImpl extends AdminImplBase {
 
   private Map<String, StatisticsConsolidation> processResult(
       Function<String, StatisticsConsolidation> function) {
-    return Configuration.getApplicationProperties()
-        .getKafkaProperties()
-        .getTopics()
+    return configurationManager
+        .getProjects()
         .stream()
+        .flatMap(project -> configurationManager.getTopics(project).stream())
+        .map(Topic::getName)
         .collect(Collectors.toMap(Function.identity(), function));
   }
 

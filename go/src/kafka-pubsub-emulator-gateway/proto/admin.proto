@@ -49,7 +49,7 @@ message ConfigurationRequest {
 message ConfigurationResponse {
   string content = 1;
   enum Extension {
-    YAML = 0;
+    JSON = 0;
   }
   Extension extension = 2;
 }

@@ -16,14 +16,18 @@
 
 package com.google.cloud.partners.pubsub.kafka;
 
-import com.google.cloud.partners.pubsub.kafka.properties.ConsumerProperties;
-import com.google.cloud.partners.pubsub.kafka.properties.SubscriptionProperties;
+import static com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager.KAFKA_TOPIC;
+
+import com.google.common.flogger.FluentLogger;
+import com.google.common.util.concurrent.AbstractScheduledService;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Timestamp;
 import com.google.pubsub.v1.PubsubMessage;
+import com.google.pubsub.v1.Subscription;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,17 +35,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -54,81 +54,61 @@ import org.apache.kafka.common.header.Headers;
 
 /**
  * A {@code SubscriptionManager} is responsible for handling the communication with Kafka as a
- * message consumer. Based on the {@link ConsumerProperties#getExecutors()} setting, a number of
- * KafkaConsumers will be created and assigned to the partitions of the topic indicated by the
- * {@link SubscriptionProperties} provided.
+ * message consumer. Based on the configuration settings, a number of KafkaConsumers will be created
+ * and assigned to the partitions of the topic indicated by the {@link Subscription} provided.
  *
  * <p>KafkaConsumer objects are not threadsafe, so care must be taken to ensure that appropriate
  * synchronization controls are in place for any methods that need to interact with a consumer. We
  * synchronize on each KafkaConsumer when using their poll() or commitSync() methods.
  */
-class SubscriptionManager {
+class SubscriptionManager extends AbstractScheduledService {
 
-  private static final Logger LOGGER = Logger.getLogger(SubscriptionManager.class.getName());
-  private static final int COMMIT_DELAY = 5; // 5 seconds
+  private static final int COMMIT_DELAY = 2; // 2 seconds
   private static final long POLL_TIMEOUT = 5000; // 5 seconds
+  private static final FluentLogger logger = FluentLogger.forEnclosingClass();
 
+  private final String kafkaTopicName;
   private final KafkaClientFactory kafkaClientFactory;
-  private final SubscriptionProperties subscriptionProperties;
-  private final ScheduledExecutorService commitExecutorService;
+  private final Clock clock;
 
   // TODO: Recreate consumers if any lose connection with brokers
-  private final List<Consumer<String, ByteBuffer>> kafkaConsumers;
+  private final List<SynchronizedConsumer> kafkaConsumers;
   private final Map<TopicPartition, OffsetAndMetadata> committedOffsets;
   private final AtomicInteger nextConsumerIndex, queueSizeBytes;
   private final Queue<ConsumerRecord<String, ByteBuffer>> buffer;
   private final Map<String, OutstandingMessage> outstandingMessages;
-  private final AtomicReference<ScheduledFuture<?>> commitFuture;
   private final int consumerExecutors;
+  private final Subscription subscription;
   private String hostName;
-  private boolean shutdown;
 
-  public SubscriptionManager(
-      SubscriptionProperties subscriptionProperties,
+  SubscriptionManager(
+      Subscription subscription,
       KafkaClientFactory kafkaClientFactory,
-      ScheduledExecutorService commitExecutorService) {
-    this.consumerExecutors =
-        Configuration.getApplicationProperties()
-            .getKafkaProperties()
-            .getConsumerProperties()
-            .getExecutors();
-
-    this.subscriptionProperties = subscriptionProperties;
+      Clock clock,
+      int consumerExecutors) {
+    this.consumerExecutors = consumerExecutors;
+    this.subscription = subscription;
     this.kafkaClientFactory = kafkaClientFactory;
-    this.commitExecutorService = commitExecutorService;
+    this.clock = clock;
 
+    kafkaTopicName = subscription.getLabelsOrDefault(KAFKA_TOPIC, subscription.getTopic());
     committedOffsets = new HashMap<>();
-    kafkaConsumers = initializeConsumers();
 
     buffer = new ConcurrentLinkedQueue<>();
     outstandingMessages = new ConcurrentHashMap<>();
-    commitFuture = new AtomicReference<>();
     nextConsumerIndex = new AtomicInteger();
     queueSizeBytes = new AtomicInteger();
-    shutdown = false;
     try {
       hostName = InetAddress.getLocalHost().getHostName();
     } catch (UnknownHostException e) {
       hostName = "<Unknown Host>";
     }
+
+    kafkaConsumers = new ArrayList<>();
   }
 
-  public SubscriptionProperties getSubscriptionProperties() {
-    return subscriptionProperties;
-  }
-
-  /** Shutdown hook should close all Consumers */
-  public void shutdown() {
-    commitFromAcknowledgments();
-    shutdown = true;
-    int closed = 0;
-    for (Consumer<String, ByteBuffer> kafkaConsumer : kafkaConsumers) {
-      synchronized (kafkaConsumer) {
-        kafkaConsumer.close();
-      }
-      closed++;
-    }
-    LOGGER.info("Closed " + closed + " KafkaConsumers");
+  public Subscription getSubscription() {
+    return subscription;
   }
 
   /**
@@ -139,7 +119,7 @@ class SubscriptionManager {
    * @return List of PubsubMessage objects.
    */
   public List<PubsubMessage> pull(int maxMessages, boolean returnImmediately) {
-    return pull(maxMessages, returnImmediately, subscriptionProperties.getAckDeadlineSeconds());
+    return pull(maxMessages, returnImmediately, subscription.getAckDeadlineSeconds());
   }
 
   /**
@@ -160,7 +140,7 @@ class SubscriptionManager {
     }
 
     // Add each message to the outstanding map
-    Instant now = Instant.now();
+    Instant now = clock.instant();
     response.forEach(
         m -> {
           OutstandingMessage om =
@@ -171,7 +151,6 @@ class SubscriptionManager {
                   .build();
           outstandingMessages.put(m.getMessageId(), om);
         });
-
     return response;
   }
 
@@ -184,38 +163,121 @@ class SubscriptionManager {
    * @return List of ackIds that were successfully acknowledged before their expiration
    */
   public List<String> acknowledge(List<String> ackIds) {
-    List<String> response = new ArrayList<>();
-    Instant now = Instant.now();
-    ackIds
+    return ackIds
         .stream()
-        .filter(outstandingMessages::containsKey)
-        .map(outstandingMessages::get)
-        .forEach(
-            om -> {
-              if (!om.isExpired(now)) {
-                om.setAcknowledged(true);
-                response.add(om.getMessageId());
-              } else {
-                LOGGER.fine(
-                    "Message "
-                        + om.getMessageId()
-                        + " expired at "
-                        + om.getExpiresAt().toEpochMilli());
-              }
-            });
+        .map(this::getOutstandingIfNotExpired)
+        .filter(Optional::isPresent)
+        .map(
+            o -> {
+              OutstandingMessage om = o.get();
+              om.setAcknowledged(true);
+              return om.getMessageId();
+            })
+        .collect(Collectors.toList());
+  }
 
-    // Schedule a commit operation if commitFuture is not already present
-    if (!response.isEmpty() && commitFuture.get() == null) {
-      commitFuture.set(
-          commitExecutorService.schedule(
-              () -> {
-                commitFromAcknowledgments();
-                commitFuture.set(null);
-              },
-              COMMIT_DELAY,
-              TimeUnit.SECONDS));
+  /**
+   * Modify each provided and unacknowledged Message by setting its ackExpiration property to
+   * ackDeadlineSecs from now.
+   *
+   * @return List of ackIds that were successfully modified before their expiration
+   */
+  public List<String> modifyAckDeadline(List<String> ackIds, int ackDeadlineSecs) {
+    return ackIds
+        .stream()
+        .map(this::getOutstandingIfNotExpired)
+        .filter(Optional::isPresent)
+        .map(
+            o -> {
+              OutstandingMessage om = o.get();
+              om.addSecondsToDeadline(ackDeadlineSecs);
+              return om.getMessageId();
+            })
+        .collect(Collectors.toList());
+  }
+
+  @Override
+  public String toString() {
+    return "SubscriptionManager{"
+        + "name="
+        + subscription.getName()
+        + ", topic="
+        + subscription.getTopic()
+        + ", kafkaTopic="
+        + kafkaTopicName
+        + ", buffer="
+        + buffer.size()
+        + ", bufferBytes="
+        + queueSizeBytes.get()
+        + ", outstandingMessages="
+        + outstandingMessages.size()
+        + '}';
+  }
+
+  @Override
+  protected void runOneIteration() {
+    commitFromAcknowledgments();
+  }
+
+  /**
+   * Initializes and returns a List of Consumers that are manually assigned to specific
+   * TopicPartitions. We choose to use manual assignment to avoid the timeout, blocking, and
+   * heartbeats required when using dynamic subscriptions.
+   *
+   * @return List of Consumers assigned to partitions from the topic
+   */
+  @Override
+  protected void startUp() {
+    // Create first consumer and determine # partitions in topic
+    Consumer<String, ByteBuffer> first = kafkaClientFactory.createConsumer(subscription.getName());
+    List<PartitionInfo> partitionInfo = first.partitionsFor(kafkaTopicName);
+
+    int totalConsumers = Math.min(partitionInfo.size(), consumerExecutors);
+    logger.atFine().log(
+        "Assigning %d KafkaConsumers to %d partitions of Kafka topic %s for Subscription %s",
+        totalConsumers, partitionInfo.size(), kafkaTopicName, subscription.getName());
+    for (int i = 0; i < totalConsumers; i++) {
+      Consumer<String, ByteBuffer> consumer =
+          i == 0 ? first : kafkaClientFactory.createConsumer(subscription.getName());
+      int consumerIndex = i;
+      Set<TopicPartition> partitionSet =
+          partitionInfo
+              .stream()
+              .filter(p -> p.partition() % totalConsumers == consumerIndex)
+              .map(p -> new TopicPartition(kafkaTopicName, p.partition()))
+              .collect(Collectors.toSet());
+      consumer.assign(partitionSet);
+      Map<TopicPartition, Long> endOffsets = consumer.endOffsets(partitionSet);
+      for (TopicPartition tp : partitionSet) {
+        committedOffsets.put(tp, consumer.committed(tp));
+        logger.atFine().log(
+            "%s assigned KafkaConsumer %d to %s:%d (End: %d, Committed %d)",
+            subscription.getName(),
+            consumerIndex,
+            tp.topic(),
+            tp.partition(),
+            endOffsets.get(tp),
+            Optional.ofNullable(consumer.committed(tp)).map(OffsetAndMetadata::offset).orElse(0L));
+      }
+      kafkaConsumers.add(new SynchronizedConsumer(consumer));
     }
-    return response;
+  }
+
+  @Override
+  protected void shutDown() {
+    commitFromAcknowledgments();
+    int closed = 0;
+    for (SynchronizedConsumer consumer : kafkaConsumers) {
+      consumer.runWithConsumer(Consumer::close);
+      closed++;
+    }
+    logger.atInfo().log("Closed %d KafkaConsumers for %s", closed, subscription.getName());
+  }
+
+  @Override
+  protected Scheduler scheduler() {
+    return AbstractScheduledService.Scheduler.newFixedDelaySchedule(
+        COMMIT_DELAY, COMMIT_DELAY, TimeUnit.SECONDS);
   }
 
   /**
@@ -228,46 +290,21 @@ class SubscriptionManager {
    *
    * @return Map of TopicPartitions and the offsets that are being committed
    */
-  public synchronized Map<TopicPartition, OffsetAndMetadata> commitFromAcknowledgments() {
-    Map<Integer, Long> smallestUnacked =
-        outstandingMessages
-            .values()
-            .stream()
-            .filter(m -> !m.isAcknowledged())
-            .collect(
-                Collectors.toMap(
-                    OutstandingMessage::getPartition,
-                    OutstandingMessage::getOffset,
-                    (o1, o2) -> o1.compareTo(o2) <= 0 ? o1 : o2));
-    Map<Integer, Long> largestAcked =
-        outstandingMessages
-            .values()
-            .stream()
-            .filter(OutstandingMessage::isAcknowledged)
-            .collect(
-                Collectors.toMap(
-                    OutstandingMessage::getPartition,
-                    OutstandingMessage::getOffset,
-                    (o1, o2) -> o1.compareTo(o2) >= 0 ? o1 : o2));
-
+  private synchronized void commitFromAcknowledgments() {
     Map<TopicPartition, OffsetAndMetadata> commits = new HashMap<>();
-    if (shutdown) {
-      LOGGER.warning("commitFromAcknowledgments called after shutdown will return immediately");
-      return commits;
-    }
+    String commitMetadata = "Committed at " + clock.instant().toEpochMilli() + " by " + hostName;
+    AckInfo[] ackInfos = getAckInfoByPartition();
 
-    String commitMetadata = "Committed at " + Instant.now().toEpochMilli() + " by " + hostName;
     // Determine new offsets for each TopicPartition
     for (TopicPartition tp : committedOffsets.keySet()) {
+      AckInfo ackInfo = ackInfos[tp.partition()];
       // Check unacked set first
-      Long ackOffset = smallestUnacked.get(tp.partition());
-      if (ackOffset != null) {
-        commits.put(tp, new OffsetAndMetadata(ackOffset, commitMetadata));
-      } else {
-        ackOffset = largestAcked.get(tp.partition());
-        if (ackOffset != null) {
-          commits.put(tp, new OffsetAndMetadata(ackOffset + 1, commitMetadata));
-        }
+      if (ackInfo.getSmallestUnacknowledged().isPresent()) {
+        commits.put(
+            tp, new OffsetAndMetadata(ackInfo.getSmallestUnacknowledged().get(), commitMetadata));
+      } else if (ackInfo.getLargestAcknowledged().isPresent()) {
+        commits.put(
+            tp, new OffsetAndMetadata(ackInfo.getLargestAcknowledged().get() + 1, commitMetadata));
       }
     }
 
@@ -276,7 +313,7 @@ class SubscriptionManager {
       Map<TopicPartition, OffsetAndMetadata> consumerCommits = new HashMap<>();
       boolean shouldCommit = false;
       for (int p = i; p < committedOffsets.keySet().size(); p += kafkaConsumers.size()) {
-        TopicPartition tp = new TopicPartition(subscriptionProperties.getTopic(), p);
+        TopicPartition tp = new TopicPartition(kafkaTopicName, p);
         OffsetAndMetadata current = committedOffsets.get(tp);
         OffsetAndMetadata newOffset = commits.get(tp);
         if (newOffset != null && (current == null || newOffset.offset() > current.offset())) {
@@ -285,79 +322,33 @@ class SubscriptionManager {
         }
       }
       if (shouldCommit) {
-        synchronized (kafkaConsumers.get(i)) {
-          LOGGER.fine(
-              "Consumer "
-                  + i
-                  + " committing "
-                  + consumerCommits
-                      .entrySet()
-                      .stream()
-                      .sorted(
-                          (es1, es2) ->
-                              es1.getKey().partition() < es2.getKey().partition() ? -1 : 1)
-                      .map(es -> "P" + es.getKey().partition() + ":" + es.getValue().offset())
-                      .collect(Collectors.joining(", ")));
-          try {
-            kafkaConsumers.get(i).commitSync(consumerCommits);
-            Consumer<String, ByteBuffer> finalConsumer = kafkaConsumers.get(i);
-            consumerCommits.forEach((t, o) -> finalConsumer.seek(t, o.offset()));
-            consumerCommits.forEach(
-                (key, value) -> purgeAcknowledged(key.partition(), value.offset()));
-            committedOffsets.putAll(consumerCommits);
-          } catch (KafkaException e) {
-            // TODO: Handle this which might include creating a new consumer
-            LOGGER.log(Level.WARNING, "Unexpected KafkaException during commit", e);
+        try {
+          SynchronizedConsumer consumer = kafkaConsumers.get(i);
+          logger.atFine().log(
+              "%s KafkaConsumer %d commiting %s",
+              subscription.getName(), i, consumerCommits.entrySet());
+          consumer.runWithConsumer(c -> c.commitSync(consumerCommits));
+          for (Map.Entry<TopicPartition, OffsetAndMetadata> entry : consumerCommits.entrySet()) {
+            logger.atFine().log(
+                "%s KafkaConsumer %d seeking to newly committed offset %d of %s:%d",
+                subscription.getName(),
+                i,
+                entry.getValue().offset(),
+                entry.getKey().topic(),
+                entry.getKey().partition());
+            consumer.runWithConsumer(c -> c.seek(entry.getKey(), entry.getValue().offset()));
+            purgeAcknowledged(entry.getKey().partition(), entry.getValue().offset());
           }
+          committedOffsets.putAll(consumerCommits);
+        } catch (KafkaException e) {
+          // TODO: Handle this which might include creating a new consumer
+          logger.atWarning().withCause(e).log("Unexpected KafkaException during commit");
         }
+      } else {
+        logger.atFiner().log(
+            "No offsets to commit for %s KafkaConsumer %d", subscription.getName(), i);
       }
     }
-    return commits;
-  }
-
-  /**
-   * Modify each provided and unacknowledged Message by setting its ackExpiration property to
-   * ackDeadlineSecs from now.
-   *
-   * @return List of ackIds that were successfully modified before their expiration
-   */
-  public List<String> modifyAckDeadline(List<String> ackIds, int ackDeadlineSecs) {
-    List<String> response = new ArrayList<>();
-    Instant now = Instant.now();
-    ackIds
-        .stream()
-        .filter(outstandingMessages::containsKey)
-        .map(outstandingMessages::get)
-        .forEach(
-            om -> {
-              if (!om.isExpired(now)) {
-                om.addSecondsToDeadline(ackDeadlineSecs);
-                response.add(om.getMessageId());
-              } else {
-                LOGGER.fine(
-                    "Message "
-                        + om.getMessageId()
-                        + " expired at "
-                        + om.getExpiresAt().toEpochMilli());
-              }
-            });
-    return response;
-  }
-
-  @Override
-  public String toString() {
-    return "SubscriptionManager{"
-        + "name="
-        + subscriptionProperties.getName()
-        + ", topic="
-        + subscriptionProperties.getTopic()
-        + ", buffer="
-        + buffer.size()
-        + ", bufferBytes="
-        + queueSizeBytes.get()
-        + ", outstandingMessages="
-        + outstandingMessages.size()
-        + '}';
   }
 
   /**
@@ -370,33 +361,22 @@ class SubscriptionManager {
     int consumerIndex = nextConsumerIndex.getAndUpdate((value) -> ++value % kafkaConsumers.size());
     int newMessages = 0;
     ConsumerRecords<String, ByteBuffer> polled = null;
-    synchronized (kafkaConsumers.get(consumerIndex)) {
-      try {
-        polled = kafkaConsumers.get(consumerIndex).poll(pollTimeout);
-      } catch (KafkaException e) {
-        // TODO: Handle this which might include creating a new consumer
-        LOGGER.log(Level.WARNING, "Unexpected KafkaException during poll", e);
-      }
+    try {
+      polled = kafkaConsumers.get(consumerIndex).getWithConsumer(c -> c.poll(pollTimeout));
+    } catch (KafkaException e) {
+      // TODO: Handle this which might include creating a new consumer
+      logger.atWarning().withCause(e).log("Unexpected KafkaException during poll");
     }
 
     if (polled != null) {
-      for (ConsumerRecord<String, ByteBuffer> record :
-          polled.records(subscriptionProperties.getTopic())) {
+      for (ConsumerRecord<String, ByteBuffer> record : polled.records(kafkaTopicName)) {
         buffer.add(record);
         newMessages++;
         queueSizeBytes.addAndGet(record.serializedValueSize());
       }
-      LOGGER.fine(
-          "poll("
-              + pollTimeout
-              + ") from consumer "
-              + consumerIndex
-              + " returned "
-              + newMessages
-              + " buffer="
-              + buffer.size()
-              + ", bufferBytes="
-              + queueSizeBytes.get());
+      logger.atFine().log(
+          "poll(%d) from consumer %d returned %d messages (buffer=%d, bufferBytes=%d)",
+          pollTimeout, consumerIndex, newMessages, buffer.size(), queueSizeBytes.get());
     }
   }
 
@@ -429,7 +409,7 @@ class SubscriptionManager {
         break;
       }
     }
-    LOGGER.fine("Dequeued " + dequeued + " messages from buffer");
+    logger.atFine().log("Dequeued %d messages from buffer", dequeued);
   }
 
   private Map<String, String> buildAttributesMap(Headers headers) {
@@ -455,58 +435,54 @@ class SubscriptionManager {
             .collect(Collectors.toList());
     purgeList.forEach(outstandingMessages::remove);
 
-    LOGGER.fine(
-        "Purged "
-            + purgeList.size()
-            + " committed messages from partition "
-            + partition
-            + " ("
-            + outstandingMessages.size()
-            + " outstanding)");
+    logger.atFine().log(
+        "Purged %d committed messages from partition %d (%d outstanding)",
+        purgeList.size(), partition, outstandingMessages.size());
   }
 
-  /**
-   * Initializes and returns a List of Consumers that are manually assigned to specific
-   * TopicPartitions. We choose to use manual assignment to avoid the timeout, blocking, and
-   * heartbeats required when using dynamic subscriptions.
-   *
-   * @return List of Consumers assigned to partitions from the topic
-   */
-  private List<Consumer<String, ByteBuffer>> initializeConsumers() {
-    // Create first consumer and determine # partitions in topic
-    Consumer<String, ByteBuffer> first =
-        kafkaClientFactory.createConsumer(subscriptionProperties.getName());
-    List<PartitionInfo> partitionInfo = first.partitionsFor(subscriptionProperties.getTopic());
+  private Optional<OutstandingMessage> getOutstandingIfNotExpired(String messageId) {
+    Instant now = clock.instant();
+    return Optional.ofNullable(outstandingMessages.get(messageId)).filter(om -> !om.isExpired(now));
+  }
 
-    int totalConsumers = Math.min(partitionInfo.size(), consumerExecutors);
-    List<Consumer<String, ByteBuffer>> consumers = new ArrayList<>(totalConsumers);
-    for (int i = 0; i < totalConsumers; i++) {
-      Consumer<String, ByteBuffer> consumer =
-          i == 0 ? first : kafkaClientFactory.createConsumer(subscriptionProperties.getName());
-      int consumerIndex = i;
-      Set<TopicPartition> partitionSet =
-          partitionInfo
-              .stream()
-              .filter(p -> p.partition() % totalConsumers == consumerIndex)
-              .map(p -> new TopicPartition(subscriptionProperties.getTopic(), p.partition()))
-              .collect(Collectors.toSet());
-      consumer.assign(partitionSet);
-      Map<TopicPartition, Long> endOffsets = consumer.endOffsets(partitionSet);
-      for (TopicPartition tp : partitionSet) {
-        committedOffsets.put(tp, consumer.committed(tp));
-        LOGGER.info(
-            "Assigned KafkaConsumer "
-                + consumerIndex
-                + " to "
-                + " Partition: "
-                + tp.partition()
-                + " End: "
-                + endOffsets.get(tp)
-                + " Committed: "
-                + consumer.committed(tp));
-      }
-      consumers.add(consumer);
+  // Determine the smallest unack'ed and largest ack'ed for each partition
+  private AckInfo[] getAckInfoByPartition() {
+    AckInfo[] ackInfos = new AckInfo[committedOffsets.size()];
+    for (int i = 0; i < ackInfos.length; i++) {
+      ackInfos[i] = new AckInfo();
     }
-    return consumers;
+    for (OutstandingMessage m : outstandingMessages.values()) {
+      long offset = m.getOffset();
+      AckInfo ackInfo = ackInfos[m.getPartition()];
+      if (!m.isAcknowledged()
+          && offset < ackInfo.getSmallestUnacknowledged().orElse(Long.MAX_VALUE)) {
+        ackInfo.setSmallestUnacknowledged(offset);
+      } else if (m.isAcknowledged() && offset > ackInfo.getLargestAcknowledged().orElse(0L)) {
+        ackInfo.setLargestAcknowledged(offset);
+      }
+    }
+    return ackInfos;
+  }
+
+  // Container class when calculating offsets to commit from acknowledgements
+  private static class AckInfo {
+    private Long smallestUnacknowledged;
+    private Long largestAcknowledged;
+
+    Optional<Long> getSmallestUnacknowledged() {
+      return Optional.ofNullable(smallestUnacknowledged);
+    }
+
+    void setSmallestUnacknowledged(Long smallestUnacknowledged) {
+      this.smallestUnacknowledged = smallestUnacknowledged;
+    }
+
+    Optional<Long> getLargestAcknowledged() {
+      return Optional.ofNullable(largestAcknowledged);
+    }
+
+    void setLargestAcknowledged(Long largestAcknowledged) {
+      this.largestAcknowledged = largestAcknowledged;
+    }
   }
 }

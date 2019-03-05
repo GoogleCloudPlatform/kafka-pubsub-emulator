@@ -22,58 +22,59 @@ import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.Parameters;
 import com.google.cloud.partners.pubsub.kafka.common.AdminGrpc;
-import com.google.cloud.partners.pubsub.kafka.properties.ApplicationProperties;
-import com.google.cloud.partners.pubsub.kafka.properties.SecurityProperties;
-import com.google.cloud.partners.pubsub.kafka.properties.ServerProperties;
+import com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager;
+import com.google.common.flogger.FluentLogger;
+import com.google.inject.Guice;
+import com.google.inject.Injector;
 import com.google.pubsub.v1.PublisherGrpc;
 import com.google.pubsub.v1.SubscriberGrpc;
 import io.grpc.Server;
-import io.grpc.netty.NettyServerBuilder;
+import io.grpc.ServerBuilder;
 import io.grpc.services.HealthStatusManager;
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.ServerChannel;
-import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.util.concurrent.DefaultThreadFactory;
 import java.io.File;
 import java.io.IOException;
-import java.time.Clock;
-import java.util.Objects;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.ForkJoinPool.ForkJoinWorkerThreadFactory;
-import java.util.concurrent.ForkJoinWorkerThread;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import javax.inject.Inject;
+import javax.inject.Singleton;
 
 /**
  * An implementation of the Cloud Pub/Sub service built on top of Apache Kafka's messaging system.
  */
-@Parameters(separators = "=")
+@Singleton
 public class PubsubEmulatorServer {
 
-  private static final Logger LOGGER = Logger.getLogger(PubsubEmulatorServer.class.getName());
+  private static final FluentLogger logger = FluentLogger.forEnclosingClass();
   private static final int MAX_MESSAGE_SIZE = 1000 * 1000 * 10; // 10MB
 
-  @Parameter(
-    names = {"--help"},
-    help = true
-  )
-  private boolean help = false;
+  private final PublisherService publisher;
+  private final SubscriberService subscriber;
+  private final HealthStatusManager healthStatusManager;
+  private final Server server;
 
-  @Parameter(
-    names = {"--configuration.location"},
-    required = true,
-    description = "Path of the file that contains the application configuration."
-  )
-  private String configurationLocation;
+  @Inject
+  public PubsubEmulatorServer(
+      ConfigurationManager configurationManager,
+      PublisherService publisher,
+      SubscriberService subscriber,
+      AdminService admin,
+      HealthStatusManager healthStatusManager) {
+    this.publisher = publisher;
+    this.subscriber = subscriber;
+    this.healthStatusManager = healthStatusManager;
 
-  private PublisherImpl publisher;
-  private SubscriberImpl subscriber;
-  private AdminImpl admin;
-  private Server server;
-  private HealthStatusManager healthStatusManager;
+    ServerBuilder builder =
+        ServerBuilder.forPort(configurationManager.getServer().getPort())
+            .addService(publisher)
+            .addService(subscriber)
+            .addService(admin)
+            .addService(healthStatusManager.getHealthService())
+            .maxInboundMessageSize(MAX_MESSAGE_SIZE);
+    if (configurationManager.getServer().hasSecurity()) {
+      builder.useTransportSecurity(
+          new File(configurationManager.getServer().getSecurity().getCertificateChainFile()),
+          new File(configurationManager.getServer().getSecurity().getPrivateKeyFile()));
+    }
+    server = builder.build();
+  }
 
   /**
    * Initialize and start the PubsubEmulatorServer.
@@ -82,39 +83,29 @@ public class PubsubEmulatorServer {
    * `configuration.location=/to/path/application.yaml` the properties will be merged.
    */
   public static void main(String[] args) {
-    PubsubEmulatorServer pubsubEmulatorServer = new PubsubEmulatorServer();
-    JCommander jCommander = new JCommander(pubsubEmulatorServer, args);
-    if (pubsubEmulatorServer.help) {
+    Args argObject = new Args();
+    JCommander jCommander = JCommander.newBuilder().addObject(argObject).build();
+    jCommander.parse(args);
+    if (argObject.help) {
       jCommander.usage();
       return;
     }
+    Injector injector =
+        Guice.createInjector(new DefaultModule(argObject.configurationFile, argObject.pubSubFile));
+    PubsubEmulatorServer pubsubEmulatorServer = injector.getInstance(PubsubEmulatorServer.class);
     try {
-      Configuration.loadApplicationProperties(pubsubEmulatorServer.configurationLocation);
       pubsubEmulatorServer.start();
       pubsubEmulatorServer.blockUntilShutdown();
     } catch (IOException | InterruptedException e) {
-      LOGGER.log(Level.SEVERE, "Unexpected server failure", e);
+      logger.atSevere().withCause(e).log("Unexpected server failure");
     }
   }
 
   /** Start the server and add a hook that calls {@link #stop()} when the JVM is shutting down. */
   public void start() throws IOException {
-    ApplicationProperties applicationProperties = Configuration.getApplicationProperties();
-
-    KafkaClientFactory kafkaClientFactory = new KafkaClientFactoryImpl();
-    SubscriptionManagerFactory subscriptionManagerFactory = new SubscriptionManagerFactoryImpl();
-    StatisticsManager statisticsManager = new StatisticsManager(Clock.systemUTC());
-
-    healthStatusManager = new HealthStatusManager();
-    admin = new AdminImpl(statisticsManager);
-    publisher = new PublisherImpl(kafkaClientFactory, statisticsManager);
-    subscriber =
-        new SubscriberImpl(kafkaClientFactory, subscriptionManagerFactory, statisticsManager);
-    server = initializeServer(applicationProperties.getServerProperties());
-
     server.start();
     startHealthcheckServices();
-    LOGGER.info("PubsubEmulatorServer started on port " + server.getPort());
+    logger.atInfo().log("PubsubEmulatorServer started on port %d", server.getPort());
     Runtime.getRuntime()
         .addShutdownHook(
             new Thread(
@@ -125,13 +116,6 @@ public class PubsubEmulatorServer {
                   PubsubEmulatorServer.this.stop();
                   System.err.println("*** server shut down");
                 }));
-  }
-
-  /** Add status information to healthcheck for each service. */
-  private void startHealthcheckServices() {
-    healthStatusManager.setStatus(PublisherGrpc.SERVICE_NAME, SERVING);
-    healthStatusManager.setStatus(SubscriberGrpc.SERVICE_NAME, SERVING);
-    healthStatusManager.setStatus(AdminGrpc.SERVICE_NAME, SERVING);
   }
 
   /** Stop serving requests, then shutdown Publisher and Subscriber services. */
@@ -150,72 +134,32 @@ public class PubsubEmulatorServer {
     }
   }
 
-  /**
-   * Initializes the gRPC server with optimum settings taken from the gRPC Performance Benchmark
-   * configuration @ https://github.com/grpc/grpc-java/blob/master/benchmarks
-   * /src/main/java/io/grpc/benchmarks/qps/AsyncServer.java
-   *
-   * @return {@link Server}
-   */
-  private Server initializeServer(ServerProperties serverProperties) {
-    EventLoopGroup boss;
-    EventLoopGroup worker;
-    Class<? extends ServerChannel> channelType;
-    ThreadFactory tf = new DefaultThreadFactory(serverProperties.getThreadGroup(), true);
-    try {
-      // These classes are only available on linux.
-      Class<?> groupClass = Class.forName("io.netty.channel.epoll.EpollEventLoopGroup");
-      @SuppressWarnings("unchecked")
-      Class<? extends ServerChannel> channelClass =
-          (Class<? extends ServerChannel>)
-              Class.forName("io.netty.channel.epoll.EpollServerSocketChannel");
-      boss =
-          (EventLoopGroup)
-              (groupClass.getConstructor(int.class, ThreadFactory.class).newInstance(1, tf));
-      worker =
-          (EventLoopGroup)
-              (groupClass.getConstructor(int.class, ThreadFactory.class).newInstance(0, tf));
-      channelType = channelClass;
-    } catch (Exception e) {
-      boss = new NioEventLoopGroup(1, tf);
-      worker = new NioEventLoopGroup(0, tf);
-      channelType = NioServerSocketChannel.class;
-    }
+  /** Add status information to healthcheck for each service. */
+  private void startHealthcheckServices() {
+    healthStatusManager.setStatus(PublisherGrpc.SERVICE_NAME, SERVING);
+    healthStatusManager.setStatus(SubscriberGrpc.SERVICE_NAME, SERVING);
+    healthStatusManager.setStatus(AdminGrpc.SERVICE_NAME, SERVING);
+  }
 
-    NettyServerBuilder builder =
-        NettyServerBuilder.forPort(serverProperties.getPort())
-            .bossEventLoopGroup(boss)
-            .workerEventLoopGroup(worker)
-            .channelType(channelType)
-            .maxMessageSize(MAX_MESSAGE_SIZE)
-            .addService(publisher)
-            .addService(subscriber)
-            .addService(admin)
-            .addService(healthStatusManager.getHealthService())
-            .executor(
-                new ForkJoinPool(
-                    serverProperties.getParallelism(),
-                    new ForkJoinWorkerThreadFactory() {
-                      final AtomicInteger num = new AtomicInteger();
+  @Parameters(separators = "=")
+  private static final class Args {
 
-                      @Override
-                      public ForkJoinWorkerThread newThread(ForkJoinPool pool) {
-                        ForkJoinWorkerThread thread =
-                            ForkJoinPool.defaultForkJoinWorkerThreadFactory.newThread(pool);
-                        thread.setDaemon(true);
-                        thread.setName(
-                            serverProperties.getThreadPrefix() + "-" + num.getAndIncrement());
-                        return thread;
-                      }
-                    },
-                    (thread, throwable) -> LOGGER.warning(thread + ": " + throwable.getMessage()),
-                    true));
-    if (Objects.nonNull(serverProperties.getSecurityProperties())) {
-      SecurityProperties securityProperties = serverProperties.getSecurityProperties();
-      builder.useTransportSecurity(
-          new File(securityProperties.getCertChainFile()),
-          new File(securityProperties.getPrivateKeyFile()));
-    }
-    return builder.build();
+    /** Command-line arguments. */
+    @Parameter(
+        names = {"-c", "--configuration-file"},
+        required = true,
+        description = "Path to a JSON-formatted configuration file for the server.")
+    private String configurationFile;
+
+    @Parameter(
+        names = {"-p", "--pubsub-repository-file"},
+        required = true,
+        description = "Path to a JSON-formatted PubSub configuration repository file.")
+    private String pubSubFile;
+
+    @Parameter(
+        names = {"--help"},
+        help = true)
+    private boolean help = false;
   }
 }

@@ -13,52 +13,35 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-# Script to configure all necessary containers for running the PubSub emulator benchmark
+# Script to configure all necessary containers for running the PubSub emulator benchmark. This
+# should after changing to this directory.
 
 set -eu -o pipefail
-NETWORK=pubsub-emulator-benchmarking
+NETWORK_LABEL=kafka-testing
+DOCKER_SCRIPT="../../docker-kafka.sh"
 
-start_containers() {
-    # Starts a Kafka cluster on the local Docker host
-    local host_ip=$(docker network inspect bridge | grep Gateway | cut -d: -f 2 | tr -d ' "')
-    echo "==== Starting Kafka cluster on docker ===="
+build_and_start_emulator() {
+    local version=$(grep --max-count=1 '<version>' ../../pom.xml | awk -F '>' '{ print $2 }' | \
+        awk -F '<' '{ print $1 }')
+    echo "Building Pub/Sub emulator Docker image - $version"
+    docker build --build-arg version=${version} -t kafka-pubsub-emulator:${version} ../../
 
-    echo "Creating Docker network ${NETWORK}"
-    docker network create ${NETWORK}
+    echo "Starting Pub/Sub emulator exposed at localhost:8080"
+    docker run -d -h kafka-pubsub-emulator --name kafka-pubsub-emulator \
+        --mount type=bind,src=$(pwd)/config,dst=/etc/config,ro=true \
+        -p 8080:8080 \
+        --network "$NETWORK_LABEL" \
+        --label "$NETWORK_LABEL" \
+        kafka-pubsub-emulator:${version} \
+        -c /etc/config/config.json -p /etc/config/pubsub.json
 
-    echo "Starting zookeeper"
-    docker run -d -h zookeeper --name zookeeper \
-        --network ${NETWORK} \
-        -p 2181 \
-        --label pubsub-emulator-benchmark \
-        wurstmeister/zookeeper
+    echo "Running containers..."
+    docker ps --filter "label=$NETWORK_LABEL"
+}
 
-    for i in 0 1 2
-    do
-        topics=
-        if [[ ${i} -eq 0 ]]
-        then
-            topics="--env KAFKA_CREATE_TOPICS=performance-testing-8p:8:2,performance-testing-32p:32:2,performance-testing-64p:64:2,performance-testing-128p:128:2"
-        fi
-
-        echo "Starting broker kafka-${i}"
-        docker volume create kafka-${i}
-        docker run -d -h kafka-${i} --name kafka-${i} \
-            --env KAFKA_BROKER_ID=${i} \
-            --env KAFKA_LISTENERS=PLAINTEXT://:9092 \
-            --env KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-${i}:9092 \
-            --env KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181 \
-            --env KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=3 \
-            --env KAFKA_AUTO_LEADER_REBALANCE_ENABLE='true' \
-            --env KAFKA_AUTO_CREATE_TOPICS_ENABLE='false' \
-            --env KAFKA_LOG_RETENTION_MS=30000 \
-            ${topics} \
-            --network ${NETWORK} \
-            -p 9092 \
-            --label pubsub-emulator-benchmark \
-            --volume kafka-${i}:/kafka \
-            wurstmeister/kafka
-    done
+if [[ "${1:-}" == "start" ]] ; then
+    "$DOCKER_SCRIPT" start \
+      "performance-testing-8p:8:2,performance-testing-32p:32:2,performance-testing-64p:64:2,performance-testing-128p:128:2"
 
     i=0
     while (( i < 20 )); do
@@ -66,31 +49,8 @@ start_containers() {
         echo "Waiting for $(( 20 - i ))s"
         (( i += 1 ))
     done
-
-    echo "Starting Pub/Sub emulator"
-    gcloud docker -- pull us.gcr.io/kafka-pubsub-emulator/kafka-pubsub-emulator:1.0.0.0
-    docker run -d -h kafka-pubsub-emulator --name kafka-pubsub-emulator \
-        --mount type=bind,src=$(pwd)/config,dst=/etc/config,ro=true \
-        -p 8080:8080 \
-        --network ${NETWORK} \
-        --label pubsub-emulator-benchmark \
-        us.gcr.io/kafka-pubsub-emulator/kafka-pubsub-emulator:1.0.0.0 \
-        --configuration.location=/etc/config/application.yaml
-
-    echo "Running containers..."
-    docker ps --filter "label=pubsub-emulator-benchmark"
-}
-
-stop_containers() {
-    # Stops and removes all artifacts from the local Docker host
-    echo "==== Stopping and cleaning up Kafka cluster on docker ===="
-    docker container rm -f zookeeper kafka-0 kafka-1 kafka-2 kafka-pubsub-emulator
-    docker volume rm -f kafka-0 kafka-1 kafka-2
-    docker network rm ${NETWORK}
-}
-
-if [[ "${1:-}" == "start" ]] ; then
-    start_containers
+    build_and_start_emulator
 else
-    stop_containers
+    docker container rm -f kafka-pubsub-emulator
+    "$DOCKER_SCRIPT" stop
 fi
