@@ -165,7 +165,7 @@ public class ConfigurationManagerTest {
         Matchers.contains(
             com.google.pubsub.v1.Topic.newBuilder()
                 .setName("projects/project-1/topics/a-new-topic")
-                .putLabels(KAFKA_TOPIC, "a-new-topic")
+                .putLabels(KAFKA_TOPIC, "project-1_a-new-topic")
                 .build(),
             com.google.pubsub.v1.Topic.newBuilder()
                 .setName("projects/project-1/topics/topic-1")

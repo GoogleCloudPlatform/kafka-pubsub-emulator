@@ -169,7 +169,7 @@ public final class ConfigurationManager {
     }
     com.google.pubsub.v1.Topic.Builder builder = topic.toBuilder();
     if (topic.getLabelsOrDefault(KAFKA_TOPIC, null) == null) {
-      builder.putLabels(KAFKA_TOPIC, projectTopicName.getTopic()).build();
+      builder.putLabels(KAFKA_TOPIC, projectTopicName.getProject() + "_" + projectTopicName.getTopic()).build();
     }
 
     com.google.pubsub.v1.Topic built = builder.build();

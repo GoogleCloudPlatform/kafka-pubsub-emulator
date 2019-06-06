@@ -107,7 +107,7 @@ public class PublisherServiceTest {
   @Test
   public void createTopic() {
     Topic request = Topic.newBuilder().setName("projects/project-1/topics/new-topic").build();
-    Topic expected = request.toBuilder().putLabels(KAFKA_TOPIC, "new-topic").build();
+    Topic expected = request.toBuilder().putLabels(KAFKA_TOPIC, "project-1_new-topic").build();
 
     assertThat(blockingStub.createTopic(request), Matchers.equalTo(expected));
   }
@@ -319,11 +319,11 @@ public class PublisherServiceTest {
     assertThat(
         topics,
         Matchers.contains(
-            "implicit-kafka-topic",
-            "implicit-kafka-topic",
-            "implicit-kafka-topic",
-            "implicit-kafka-topic",
-            "implicit-kafka-topic"));
+            "project-1_implicit-kafka-topic",
+            "project-1_implicit-kafka-topic",
+            "project-1_implicit-kafka-topic",
+            "project-1_implicit-kafka-topic",
+            "project-1_implicit-kafka-topic"));
     assertThat(
         data, Matchers.contains("message-0", "message-1", "message-2", "message-3", "message-4"));
 
