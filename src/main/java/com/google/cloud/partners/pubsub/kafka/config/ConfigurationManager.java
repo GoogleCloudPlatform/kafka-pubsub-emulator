@@ -26,6 +26,8 @@ import com.google.protobuf.util.JsonFormat;
 import com.google.pubsub.v1.ProjectName;
 import com.google.pubsub.v1.ProjectSubscriptionName;
 import com.google.pubsub.v1.ProjectTopicName;
+import com.google.pubsub.v1.PushConfig;
+
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -82,6 +84,7 @@ public final class ConfigurationManager {
                   .setTopic(topicName)
                   .setName(ProjectSubscriptionName.format(p.getName(), s.getName()))
                   .setAckDeadlineSeconds(s.getAckDeadlineSeconds())
+                  .setPushConfig(PushConfig.getDefaultInstance())
                   .putLabels(KAFKA_TOPIC, kafkaTopic)
                   .build());
         }
@@ -217,8 +220,9 @@ public final class ConfigurationManager {
     com.google.pubsub.v1.Subscription.Builder builder =
         subscription.toBuilder().putLabels(KAFKA_TOPIC, topic.getLabelsOrThrow(KAFKA_TOPIC));
     if (subscription.getAckDeadlineSeconds() == 0) {
-      builder.setAckDeadlineSeconds(10).build();
+      builder.setAckDeadlineSeconds(10);
     }
+    builder.setPushConfig(PushConfig.getDefaultInstance()).build();
     com.google.pubsub.v1.Subscription built = builder.build();
     subscriptionsByProject.put(
         ProjectName.of(projectSubscriptionName.getProject()).toString(), built);

@@ -6,6 +6,7 @@ import static org.junit.Assert.assertThat;
 import com.google.cloud.partners.pubsub.kafka.TestHelpers;
 import com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager.ConfigurationAlreadyExistsException;
 import com.google.cloud.partners.pubsub.kafka.config.ConfigurationManager.ConfigurationNotFoundException;
+import com.google.pubsub.v1.PushConfig;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Rule;
@@ -72,24 +73,28 @@ public class ConfigurationManagerTest {
                 .setName("projects/project-1/subscriptions/subscription-1")
                 .setTopic("projects/project-1/topics/topic-1")
                 .putLabels(KAFKA_TOPIC, "kafka-topic-1")
+                .setPushConfig(PushConfig.getDefaultInstance())
                 .setAckDeadlineSeconds(10)
                 .build(),
             com.google.pubsub.v1.Subscription.newBuilder()
                 .setName("projects/project-1/subscriptions/subscription-2")
                 .setTopic("projects/project-1/topics/topic-1")
                 .putLabels(KAFKA_TOPIC, "kafka-topic-1")
+                .setPushConfig(PushConfig.getDefaultInstance())
                 .setAckDeadlineSeconds(10)
                 .build(),
             com.google.pubsub.v1.Subscription.newBuilder()
                 .setName("projects/project-1/subscriptions/subscription-3")
                 .setTopic("projects/project-1/topics/topic-2")
                 .putLabels(KAFKA_TOPIC, "kafka-topic-2")
+                .setPushConfig(PushConfig.getDefaultInstance())
                 .setAckDeadlineSeconds(30)
                 .build(),
             com.google.pubsub.v1.Subscription.newBuilder()
                 .setName("projects/project-1/subscriptions/subscription-4")
                 .setTopic("projects/project-1/topics/topic-2")
                 .putLabels(KAFKA_TOPIC, "kafka-topic-2")
+                .setPushConfig(PushConfig.getDefaultInstance())
                 .setAckDeadlineSeconds(45)
                 .build()));
     assertThat(
@@ -99,17 +104,20 @@ public class ConfigurationManagerTest {
                 .setName("projects/project-2/subscriptions/subscription-1")
                 .setTopic("projects/project-2/topics/topic-1")
                 .putLabels(KAFKA_TOPIC, "kafka-topic-1")
+                .setPushConfig(PushConfig.getDefaultInstance())
                 .setAckDeadlineSeconds(10)
                 .build(),
             com.google.pubsub.v1.Subscription.newBuilder()
                 .setName("projects/project-2/subscriptions/subscription-2")
                 .setTopic("projects/project-2/topics/topic-1")
+                .setPushConfig(PushConfig.getDefaultInstance())
                 .putLabels(KAFKA_TOPIC, "kafka-topic-1")
                 .setAckDeadlineSeconds(10)
                 .build(),
             com.google.pubsub.v1.Subscription.newBuilder()
                 .setName("projects/project-2/subscriptions/subscription-3")
                 .setTopic("projects/project-2/topics/topic-2")
+                .setPushConfig(PushConfig.getDefaultInstance())
                 .putLabels(KAFKA_TOPIC, "kafka-topic-2")
                 .setAckDeadlineSeconds(30)
                 .build()));
@@ -130,11 +138,13 @@ public class ConfigurationManagerTest {
                 .setTopic("projects/project-1/topics/topic-1")
                 .putLabels(KAFKA_TOPIC, "kafka-topic-1")
                 .setAckDeadlineSeconds(10)
+                .setPushConfig(PushConfig.getDefaultInstance())
                 .build(),
             com.google.pubsub.v1.Subscription.newBuilder()
                 .setName("projects/project-1/subscriptions/subscription-2")
                 .setTopic("projects/project-1/topics/topic-1")
                 .putLabels(KAFKA_TOPIC, "kafka-topic-1")
+                .setPushConfig(PushConfig.getDefaultInstance())
                 .setAckDeadlineSeconds(10)
                 .build()));
     assertThat(
@@ -144,12 +154,14 @@ public class ConfigurationManagerTest {
                 .setName("projects/project-2/subscriptions/subscription-1")
                 .setTopic("projects/project-2/topics/topic-1")
                 .putLabels(KAFKA_TOPIC, "kafka-topic-1")
+                .setPushConfig(PushConfig.getDefaultInstance())
                 .setAckDeadlineSeconds(10)
                 .build(),
             com.google.pubsub.v1.Subscription.newBuilder()
                 .setName("projects/project-2/subscriptions/subscription-2")
                 .setTopic("projects/project-2/topics/topic-1")
                 .putLabels(KAFKA_TOPIC, "kafka-topic-1")
+                .setPushConfig(PushConfig.getDefaultInstance())
                 .setAckDeadlineSeconds(10)
                 .build()));
   }
@@ -227,30 +239,35 @@ public class ConfigurationManagerTest {
                 .setName("projects/project-1/subscriptions/new-subscription")
                 .setTopic("projects/project-1/topics/topic-1")
                 .putLabels(KAFKA_TOPIC, "kafka-topic-1")
+                .setPushConfig(PushConfig.getDefaultInstance())
                 .setAckDeadlineSeconds(10)
                 .build(),
             com.google.pubsub.v1.Subscription.newBuilder()
                 .setName("projects/project-1/subscriptions/subscription-1")
                 .setTopic("projects/project-1/topics/topic-1")
                 .putLabels(KAFKA_TOPIC, "kafka-topic-1")
+                .setPushConfig(PushConfig.getDefaultInstance())
                 .setAckDeadlineSeconds(10)
                 .build(),
             com.google.pubsub.v1.Subscription.newBuilder()
                 .setName("projects/project-1/subscriptions/subscription-2")
                 .setTopic("projects/project-1/topics/topic-1")
                 .putLabels(KAFKA_TOPIC, "kafka-topic-1")
+                .setPushConfig(PushConfig.getDefaultInstance())
                 .setAckDeadlineSeconds(10)
                 .build(),
             com.google.pubsub.v1.Subscription.newBuilder()
                 .setName("projects/project-1/subscriptions/subscription-3")
                 .setTopic("projects/project-1/topics/topic-2")
                 .putLabels(KAFKA_TOPIC, "kafka-topic-2")
+                .setPushConfig(PushConfig.getDefaultInstance())
                 .setAckDeadlineSeconds(30)
                 .build(),
             com.google.pubsub.v1.Subscription.newBuilder()
                 .setName("projects/project-1/subscriptions/subscription-4")
                 .setTopic("projects/project-1/topics/topic-2")
                 .putLabels(KAFKA_TOPIC, "kafka-topic-2")
+                .setPushConfig(PushConfig.getDefaultInstance())
                 .setAckDeadlineSeconds(45)
                 .build()));
   }
@@ -294,6 +311,7 @@ public class ConfigurationManagerTest {
                 .setName("projects/project-2/subscriptions/subscription-1")
                 .setTopic("projects/project-2/topics/topic-1")
                 .putLabels(KAFKA_TOPIC, "kafka-topic-1")
+                .setPushConfig(PushConfig.getDefaultInstance())
                 .setAckDeadlineSeconds(10)
                 .build(),
             com.google.pubsub.v1.Subscription.newBuilder()
@@ -301,6 +319,7 @@ public class ConfigurationManagerTest {
                 .setTopic("projects/project-2/topics/topic-1")
                 .putLabels(KAFKA_TOPIC, "kafka-topic-1")
                 .setAckDeadlineSeconds(10)
+                .setPushConfig(PushConfig.getDefaultInstance())
                 .build()));
   }
 
