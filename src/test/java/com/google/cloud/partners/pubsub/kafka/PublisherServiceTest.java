@@ -76,6 +76,7 @@ public class PublisherServiceTest {
   private static final ScheduledExecutorService PUBLISH_EXECUTOR =
       Executors.newSingleThreadScheduledExecutor();
   private static final String KAFKA_TOPIC = "kafka-topic";
+  private static final String KAFKA_TOPIC_SEPARATOR = ConfigurationManager.KAFKA_TOPIC_SEPARATOR;
 
   @Rule public final GrpcServerRule grpcServerRule = new GrpcServerRule().directExecutor();
   @Rule public final ExpectedException expectedException = ExpectedException.none();
@@ -107,7 +108,8 @@ public class PublisherServiceTest {
   @Test
   public void createTopic() {
     Topic request = Topic.newBuilder().setName("projects/project-1/topics/new-topic").build();
-    Topic expected = request.toBuilder().putLabels(KAFKA_TOPIC, "project-1_new-topic").build();
+    Topic expected = request.toBuilder().putLabels(KAFKA_TOPIC,
+            "project-1" + KAFKA_TOPIC_SEPARATOR + "new-topic").build();
 
     assertThat(blockingStub.createTopic(request), Matchers.equalTo(expected));
   }
@@ -319,11 +321,11 @@ public class PublisherServiceTest {
     assertThat(
         topics,
         Matchers.contains(
-            "project-1_implicit-kafka-topic",
-            "project-1_implicit-kafka-topic",
-            "project-1_implicit-kafka-topic",
-            "project-1_implicit-kafka-topic",
-            "project-1_implicit-kafka-topic"));
+            "project-1" + KAFKA_TOPIC_SEPARATOR + "implicit-kafka-topic",
+            "project-1" + KAFKA_TOPIC_SEPARATOR + "implicit-kafka-topic",
+            "project-1" + KAFKA_TOPIC_SEPARATOR + "implicit-kafka-topic",
+            "project-1" + KAFKA_TOPIC_SEPARATOR + "implicit-kafka-topic",
+            "project-1" + KAFKA_TOPIC_SEPARATOR + "implicit-kafka-topic"));
     assertThat(
         data, Matchers.contains("message-0", "message-1", "message-2", "message-3", "message-4"));
 

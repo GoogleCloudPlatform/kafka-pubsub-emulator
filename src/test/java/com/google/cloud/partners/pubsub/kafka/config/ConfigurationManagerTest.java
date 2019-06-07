@@ -17,6 +17,7 @@ public class ConfigurationManagerTest {
   @Rule public ExpectedException expectedException = ExpectedException.none();
   private FakePubSubRepository fakePubSubRepository = new FakePubSubRepository();
   private ConfigurationManager configurationManager;
+  private static final String KAFKA_TOPIC_SEPARATOR = ConfigurationManager.KAFKA_TOPIC_SEPARATOR;
 
   @Before
   public void setUp() {
@@ -165,7 +166,7 @@ public class ConfigurationManagerTest {
         Matchers.contains(
             com.google.pubsub.v1.Topic.newBuilder()
                 .setName("projects/project-1/topics/a-new-topic")
-                .putLabels(KAFKA_TOPIC, "project-1_a-new-topic")
+                .putLabels(KAFKA_TOPIC, "project-1" + KAFKA_TOPIC_SEPARATOR + "a-new-topic")
                 .build(),
             com.google.pubsub.v1.Topic.newBuilder()
                 .setName("projects/project-1/topics/topic-1")

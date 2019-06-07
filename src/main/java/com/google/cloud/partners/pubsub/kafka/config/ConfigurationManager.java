@@ -45,6 +45,7 @@ import javax.inject.Singleton;
 public final class ConfigurationManager {
 
   public static final String KAFKA_TOPIC = "kafka-topic";
+  public static final String KAFKA_TOPIC_SEPARATOR = ".";
 
   private final SetMultimap<String, com.google.pubsub.v1.Topic> topicsByProject =
       Multimaps.synchronizedSetMultimap(HashMultimap.create());
@@ -169,7 +170,10 @@ public final class ConfigurationManager {
     }
     com.google.pubsub.v1.Topic.Builder builder = topic.toBuilder();
     if (topic.getLabelsOrDefault(KAFKA_TOPIC, null) == null) {
-      builder.putLabels(KAFKA_TOPIC, projectTopicName.getProject() + "_" + projectTopicName.getTopic()).build();
+      builder.putLabels(
+          KAFKA_TOPIC,
+          String.join(
+              KAFKA_TOPIC_SEPARATOR, projectTopicName.getProject(), projectTopicName.getTopic()));
     }
 
     com.google.pubsub.v1.Topic built = builder.build();
