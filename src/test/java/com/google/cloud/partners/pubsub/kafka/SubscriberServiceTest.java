@@ -40,6 +40,7 @@ import com.google.pubsub.v1.ModifyAckDeadlineRequest;
 import com.google.pubsub.v1.PubsubMessage;
 import com.google.pubsub.v1.PullRequest;
 import com.google.pubsub.v1.PullResponse;
+import com.google.pubsub.v1.PushConfig;
 import com.google.pubsub.v1.ReceivedMessage;
 import com.google.pubsub.v1.StreamingPullRequest;
 import com.google.pubsub.v1.StreamingPullResponse;
@@ -123,6 +124,7 @@ public class SubscriberServiceTest {
             .toBuilder()
             .setAckDeadlineSeconds(10)
             .putLabels(KAFKA_TOPIC, "kafka-topic-1")
+            .setPushConfig(PushConfig.getDefaultInstance())
             .build();
     SubscriptionManager fakeSubscriptionManager =
         new FakeSubscriptionManager(
@@ -203,6 +205,7 @@ public class SubscriberServiceTest {
                 .setName(TestHelpers.PROJECT1_SUBSCRIPTION1)
                 .setTopic(TestHelpers.PROJECT1_TOPIC1)
                 .putLabels(KAFKA_TOPIC, "kafka-topic-1")
+                .setPushConfig(PushConfig.getDefaultInstance())
                 .setAckDeadlineSeconds(10)
                 .build()));
   }
@@ -232,12 +235,14 @@ public class SubscriberServiceTest {
                 .setName(TestHelpers.PROJECT1_SUBSCRIPTION1)
                 .setTopic(TestHelpers.PROJECT1_TOPIC1)
                 .putLabels(KAFKA_TOPIC, "kafka-topic-1")
+                .setPushConfig(PushConfig.getDefaultInstance())
                 .setAckDeadlineSeconds(10)
                 .build(),
             Subscription.newBuilder()
                 .setName(TestHelpers.PROJECT1_SUBSCRIPTION2)
                 .setTopic(TestHelpers.PROJECT1_TOPIC1)
                 .putLabels(KAFKA_TOPIC, "kafka-topic-1")
+                .setPushConfig(PushConfig.getDefaultInstance())
                 .setAckDeadlineSeconds(30)
                 .build()));
   }
@@ -258,6 +263,7 @@ public class SubscriberServiceTest {
                 .setName(TestHelpers.PROJECT1_SUBSCRIPTION1)
                 .setTopic(TestHelpers.PROJECT1_TOPIC1)
                 .putLabels(KAFKA_TOPIC, "kafka-topic-1")
+                .setPushConfig(PushConfig.getDefaultInstance())
                 .setAckDeadlineSeconds(10)
                 .build()));
     assertThat(response.getNextPageToken(), Matchers.not(Matchers.isEmptyOrNullString()));
@@ -271,6 +277,7 @@ public class SubscriberServiceTest {
                 .setName(TestHelpers.PROJECT1_SUBSCRIPTION2)
                 .setTopic(TestHelpers.PROJECT1_TOPIC1)
                 .putLabels(KAFKA_TOPIC, "kafka-topic-1")
+                .setPushConfig(PushConfig.getDefaultInstance())
                 .setAckDeadlineSeconds(30)
                 .build()));
     assertThat(response.getNextPageToken(), Matchers.isEmptyOrNullString());
@@ -771,6 +778,7 @@ public class SubscriberServiceTest {
             .setName(TestHelpers.PROJECT1_SUBSCRIPTION1)
             .setTopic(TestHelpers.PROJECT1_TOPIC1)
             .putLabels(KAFKA_TOPIC, "kafka-topic-1")
+            .setPushConfig(PushConfig.getDefaultInstance())
             .setAckDeadlineSeconds(10)
             .build();
     Subscription subscription2 =
@@ -778,6 +786,7 @@ public class SubscriberServiceTest {
             .setName(TestHelpers.PROJECT1_SUBSCRIPTION2)
             .setTopic(TestHelpers.PROJECT1_TOPIC1)
             .putLabels(KAFKA_TOPIC, "kafka-topic-1")
+            .setPushConfig(PushConfig.getDefaultInstance())
             .setAckDeadlineSeconds(30)
             .build();
     Subscription subscription3 =
@@ -785,6 +794,7 @@ public class SubscriberServiceTest {
             .setName(TestHelpers.PROJECT2_SUBSCRIPTION3)
             .setTopic("projects/project-2/topics/topic-2")
             .putLabels(KAFKA_TOPIC, "kafka-topic-2")
+            .setPushConfig(PushConfig.getDefaultInstance())
             .setAckDeadlineSeconds(45)
             .build();
 

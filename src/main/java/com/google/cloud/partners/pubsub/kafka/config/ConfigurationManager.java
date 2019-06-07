@@ -220,9 +220,9 @@ public final class ConfigurationManager {
     com.google.pubsub.v1.Subscription.Builder builder =
         subscription.toBuilder().putLabels(KAFKA_TOPIC, topic.getLabelsOrThrow(KAFKA_TOPIC));
     if (subscription.getAckDeadlineSeconds() == 0) {
-      builder.setAckDeadlineSeconds(10).build();
+      builder.setAckDeadlineSeconds(10);
     }
-    builder.setPushConfig(PushConfig.getDefaultInstance());
+    builder.setPushConfig(PushConfig.getDefaultInstance()).build();
     com.google.pubsub.v1.Subscription built = builder.build();
     subscriptionsByProject.put(
         ProjectName.of(projectSubscriptionName.getProject()).toString(), built);
