@@ -394,7 +394,7 @@ class SubscriptionManager extends AbstractScheduledService {
         dequeued++;
         messageId = record.partition() + "-" + record.offset();
         queueSizeBytes.addAndGet(-record.serializedValueSize());
-        returnedMessages.add(
+        PubsubMessage.Builder pubsubMessageBuilder =
             PubsubMessage.newBuilder()
                 .putAllAttributes(buildAttributesMap(record.headers()))
                 .setData(ByteString.copyFrom(record.value()))
@@ -403,8 +403,11 @@ class SubscriptionManager extends AbstractScheduledService {
                     Timestamp.newBuilder()
                         .setSeconds(record.timestamp() / 1000)
                         .setNanos((int) ((record.timestamp() % 1000) * 1000000))
-                        .build())
-                .build());
+                        .build());
+        if (record.key() != null) {
+          pubsubMessageBuilder.setOrderingKey(record.key());
+        }
+        returnedMessages.add(pubsubMessageBuilder.build());
       } catch (NoSuchElementException e) {
         break;
       }

@@ -108,8 +108,11 @@ public class PublisherServiceTest {
   @Test
   public void createTopic() {
     Topic request = Topic.newBuilder().setName("projects/project-1/topics/new-topic").build();
-    Topic expected = request.toBuilder().putLabels(KAFKA_TOPIC,
-            "project-1" + KAFKA_TOPIC_SEPARATOR + "new-topic").build();
+    Topic expected =
+        request
+            .toBuilder()
+            .putLabels(KAFKA_TOPIC, "project-1" + KAFKA_TOPIC_SEPARATOR + "new-topic")
+            .build();
 
     assertThat(blockingStub.createTopic(request), Matchers.equalTo(expected));
   }
