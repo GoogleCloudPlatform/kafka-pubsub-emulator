@@ -167,7 +167,7 @@ public abstract class BaseIT {
         fail("Unable to create SSL channel " + e.getMessage());
       }
     } else {
-      channel = ManagedChannelBuilder.forAddress(LOCALHOST, PORT).usePlaintext(true).build();
+      channel = ManagedChannelBuilder.forAddress(LOCALHOST, PORT).usePlaintext().build();
     }
     return FixedTransportChannelProvider.create(GrpcTransportChannel.create(channel));
   }
@@ -187,7 +187,7 @@ public abstract class BaseIT {
         fail("Unable to create SSL channel " + e.getMessage());
       }
     } else {
-      channel = ManagedChannelBuilder.forAddress(LOCALHOST, PORT).usePlaintext(true).build();
+      channel = ManagedChannelBuilder.forAddress(LOCALHOST, PORT).usePlaintext().build();
     }
     return AdminGrpc.newBlockingStub(channel);
   }

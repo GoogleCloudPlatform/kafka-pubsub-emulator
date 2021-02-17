@@ -38,32 +38,32 @@
     <dependency>
       <groupId>com.google.api.grpc</groupId>
       <artifactId>proto-google-common-protos</artifactId>
-      <version>1.0.0</version>
+      <version>1.18.0</version>
     </dependency>
     <dependency>
       <groupId>com.google.protobuf</groupId>
       <artifactId>protobuf-java</artifactId>
-      <version>3.5.1</version>
+      <version>3.12.2</version>
     </dependency>
     <dependency>
       <groupId>com.google.api.grpc</groupId>
       <artifactId>proto-google-cloud-pubsub-v1</artifactId>
-      <version>1.41.0</version>
+      <version>1.90.1</version>
     </dependency>
     <dependency>
       <groupId>io.grpc</groupId>
       <artifactId>grpc-core</artifactId>
-      <version>1.16.1</version>
+      <version>1.35.0</version>
     </dependency>
     <dependency>
       <groupId>com.google.protobuf</groupId>
       <artifactId>protobuf-java-util</artifactId>
-      <version>3.5.1</version>
+      <version>3.12.2</version>
     </dependency>
     <dependency>
       <groupId>com.google.api</groupId>
       <artifactId>api-common</artifactId>
-      <version>1.7.0</version>
+      <version>1.9.3</version>
     </dependency>
     <dependency>
       <groupId>org.apache.kafka</groupId>
@@ -73,22 +73,22 @@
     <dependency>
       <groupId>io.grpc</groupId>
       <artifactId>grpc-protobuf</artifactId>
-      <version>1.16.1</version>
+      <version>1.35.0</version>
     </dependency>
     <dependency>
       <groupId>io.grpc</groupId>
       <artifactId>grpc-services</artifactId>
-      <version>1.16.1</version>
+      <version>1.35.0</version>
     </dependency>
     <dependency>
       <groupId>io.grpc</groupId>
       <artifactId>grpc-stub</artifactId>
-      <version>1.16.1</version>
+      <version>1.35.0</version>
     </dependency>
     <dependency>
       <groupId>com.google.api.grpc</groupId>
       <artifactId>grpc-google-cloud-pubsub-v1</artifactId>
-      <version>1.41.0</version>
+      <version>1.90.1</version>
     </dependency>
     <dependency>
       <groupId>com.beust</groupId>
@@ -114,7 +114,7 @@
     <dependency>
       <groupId>io.grpc</groupId>
       <artifactId>grpc-netty</artifactId>
-      <version>1.16.1</version>
+      <version>1.35.0</version>
     </dependency>
     <dependency>
       <groupId>io.netty</groupId>
@@ -141,13 +141,13 @@
     <dependency>
       <groupId>io.grpc</groupId>
       <artifactId>grpc-testing</artifactId>
-      <version>1.16.1</version>
+      <version>1.35.0</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>com.google.cloud</groupId>
       <artifactId>google-cloud-pubsub</artifactId>
-      <version>1.59.0</version>
+      <version>1.110.3</version>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -320,7 +320,7 @@
       <plugin>
         <groupId>org.jacoco</groupId>
         <artifactId>jacoco-maven-plugin</artifactId>
-        <version>0.8.0</version>
+        <version>0.8.6</version>
         <!-- Configuration from https://www.petrikainulainen.net/programming/maven/creating-code-coverage-reports-for-unit-and-integration-tests-with-the-jacoco-maven-plugin/ -->
         <executions>
           <execution>

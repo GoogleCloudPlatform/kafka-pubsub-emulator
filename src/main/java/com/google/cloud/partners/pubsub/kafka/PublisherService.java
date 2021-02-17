@@ -256,7 +256,7 @@ class PublisherService extends PublisherImplBase {
     return new ProducerRecord<String, ByteBuffer>(
         kafkaTopic,
         null,
-        null,
+        m.getOrderingKey(),
         m.getData().asReadOnlyByteBuffer(),
         buildHeaders(m.getAttributesMap()));
   }
