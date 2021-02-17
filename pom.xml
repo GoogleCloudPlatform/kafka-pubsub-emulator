@@ -15,7 +15,7 @@
     <maven.compiler.target>1.8</maven.compiler.target>
     <start-class>com.google.cloud.partners.pubsub.kafka.PubsubEmulatorServer</start-class>
     <kafka.version>1.0.0</kafka.version>
-    <zookeeper.version>3.4.11</zookeeper.version>
+    <zookeeper.version>3.4.14</zookeeper.version>
   </properties>
 
   <dependencies>
