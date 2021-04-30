@@ -13,7 +13,7 @@ pyasn1==0.4.2
 pyasn1-modules==0.2.1
 requests==2.20.0
 requests-oauthlib==0.8.0
-rsa==3.4.2
+rsa==4.7
 six==1.11.0
 uritemplate==3.0.0
 urllib3==1.22
