@@ -28,7 +28,7 @@ clean() {
 }
 
 build_proto_files(){
-  go get -u -v github.com/spf13/cobra/cobra && \
+  go get -u -v github.com/spf13/cobra && \
   go get -u -v google.golang.org/grpc && \
   go get -u -v github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway && \
   go get -u -v github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger && \
