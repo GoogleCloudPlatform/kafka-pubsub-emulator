@@ -1,3 +1,5 @@
+### **DEPRECATED:  This project is no longer being actively maintained. Please visit the official [Pub/Sub Group Kafka Connector](https://github.com/googleapis/java-pubsub-group-kafka-connector), which supports development and testing between the two services.**
+
 # Pub/Sub Emulator for Kafka
 
 This project implements a gRPC server that satisfies the [Cloud Pub/Sub 
